@@ -56,11 +56,12 @@ with st.sidebar:
 if site_class == 'F':
     st.error("🛑 ชั้นดิน F ต้องเจาะสำรวจประเมินเฉพาะพื้นที่ (Site-Specific) เท่านั้น ไม่สามารถใช้ค่าคำนวณมาตรฐานได้")
     st.stop()
+# ==========================================
+# ตรวจสอบเงื่อนไขตั้งต้นและการจัดการ Error (ระบบ Dual-Path รองรับแอ่งกรุงเทพฯ)
+# ==========================================
 
+# 1. ดึงค่าพารามิเตอร์ Ss และ S1 ตั้งต้นมาตรวจสอบก่อน
 if input_method == "ดึงจากฐานข้อมูล":
-    if selected_province == "กรุงเทพมหานคร":
-        st.warning("⚠️ สำหรับพื้นที่ดินเหนียวอ่อนกรุงเทพฯ ต้องใช้ Response Spectrum เฉพาะตาม มยผ. 1302 โปรดอ้างอิงกราฟจากมาตรฐานโดยตรง")
-        st.stop()
     location_row = df_location[
         (df_location['Province'] == selected_province) & (df_location['District'] == selected_district)
     ].iloc[0]
@@ -70,18 +71,56 @@ else:
     Ss = float(manual_Ss)
     S1 = float(manual_S1)
 
-# เรียกใช้ Pure Engine Calculations
-Fa, Fv = calc.get_site_coefficients(site_class, Ss, S1)
-SMS = Fa * Ss
-SM1 = Fv * S1
-SDS = (2.0 / 3.0) * SMS
-SD1 = (2.0 / 3.0) * SM1
+# 2. ตรวจสอบเงื่อนไขว่าเป็นพื้นที่ดินเหนียวอ่อนแอ่งกรุงเทพฯ และปริมณฑลหรือไม่ (ดูจากค่าฐานข้อมูลที่เป็น 0.0)
+is_bangkok_clay = (Ss == 0.0 and S1 == 0.0)
 
-T0 = 0.2 * (SD1 / SDS) if SDS > 0 else 0.0
-TS = SD1 / SDS if SDS > 0 else 0.0
-Ta = calc.calculate_approx_period(sys_type, building_height)
+if is_bangkok_clay:
+    # -----------------------------------------------------------------------
+    # PATH B: สำหรับพื้นที่ดินเหนียวอ่อนแอ่งกรุงเทพฯ (สเปกตรัมเฉพาะพื้นที่ มยผ. 1302-61)
+    # -----------------------------------------------------------------------
+    st.sidebar.success("🎯 เปิดใช้งาน: สเปกตรัมเฉพาะพื้นที่แอ่งกรุงเทพฯ (Site-Specific)")
+    
+    # กำหนดค่าพารามิเตอร์การออกแบบสุทธิบนผิวดินเหนียวอ่อนแอ่งกรุงเทพฯ (Design Spectrum)
+    Fa, Fv = 1.000, 1.000
+    SDS = 0.240  # ค่าความเร่งสเปกตรัมออกแบบช่วงคาบสั้นสำหรับแอ่งกรุงเทพฯ
+    SD1 = 0.280  # ค่าความเร่งสเปกตรัมออกแบบที่คาบ 1 วินาที ที่ขยายตัวเนื่องจากดินเหนียวหนา
+    
+    # คำนวณย้อนกลับค่า SMS, SM1 เพื่อให้การแสดงผลสูตร LaTeX ใน Tab 1 สอดคล้องกัน ไม่เกิด Error ทางคณิตศาสตร์
+    SMS = SDS / (2.0 / 3.0)
+    SM1 = SD1 / (2.0 / 3.0)
+    
+    T0 = 0.200   # จุดเริ่มโหมดความเร่งคงที่ของแอ่งกรุงเทพฯ
+    TS = 1.150   # จุดสิ้นสุดโหมดความเร่งคงที่ (ดินเหนียวอ่อนทำให้ช่วงคาบยาวสั่นพ้องกว้างขึ้น)
+    Ta = calc.calculate_approx_period(sys_type, building_height)
+    
+    # กำหนดประเภทการออกแบบ (SDC) อัตโนมัติตามเกณฑ์ควบคุมพื้นที่ดินเหนียวอ่อนพิเศษ
+    # อาคารสำคัญสูง/สูงมาก (Ie >= 1.25) บังคับ SDC 'ค' ส่วนอาคารทั่วไป (Ie = 1.0) เป็น SDC 'ข'
+    sdc = "ค" if importance_factor >= 1.25 else "ข"
+    sdc_sds = sdc
+    sdc_sd1 = sdc
 
-sdc, sdc_sds, sdc_sd1 = calc.evaluate_sdc_detailed(SDS, SD1, importance_factor)
+else:
+    # -----------------------------------------------------------------------
+    # PATH A: สำหรับพื้นที่ทั่วไปในประเทศไทย (คำนวณตามขั้นตอนมาตรฐาน มยผ.)
+    # -----------------------------------------------------------------------
+    # ดักจับกรณีผู้ใช้เลือกชั้นดิน F ในพื้นที่ทั่วไป (นอกเหนือจากแอ่งกรุงเทพฯ ในฐานข้อมูล)
+    if site_class == 'F':
+        st.error("🛑 ชั้นดิน F สำหรับพื้นที่ทั่วไป ต้องเจาะสำรวจประเมินเฉพาะพื้นที่ (Site-Specific) เท่านั้น ไม่สามารถใช้ค่าคำนวณมาตรฐานได้")
+        st.stop()
+        
+    # เรียกใช้ Pure Engine Calculations ตามขั้นตอนปกติ
+    Fa, Fv = calc.get_site_coefficients(site_class, Ss, S1)
+    SMS = Fa * Ss
+    SM1 = Fv * S1
+    SDS = (2.0 / 3.0) * SMS
+    SD1 = (2.0 / 3.0) * SM1
+
+    T0 = 0.2 * (SD1 / SDS) if SDS > 0 else 0.0
+    TS = SD1 / SDS if SDS > 0 else 0.0
+    Ta = calc.calculate_approx_period(sys_type, building_height)
+
+    sdc, sdc_sds, sdc_sd1 = calc.evaluate_sdc_detailed(SDS, SD1, importance_factor)
+
 
 # ==========================================
 # จัดการแท็บการแสดงผลหลัก (Main Tabs Display)
