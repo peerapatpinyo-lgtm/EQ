@@ -131,13 +131,14 @@ else:
 # ==========================================
 st.markdown("---")
 # เพิ่ม tab_dynamic เข้าไปด้านซ้าย เพื่อให้ครบ 6 ตัวพอดีกับชื่อด้านขวา
-tab1, tab2, tab3, tab4, tab5, tab_dynamic = st.tabs([
+tab1, tab2, tab3, tab4, tab5, tab_dynamic, tab_dynamic_calc = st.tabs([
     "📋 1. พารามิเตอร์ออกแบบ", 
     "🚦 2. ประเภท SDC", 
     "📈 3. Response Spectrum", 
     "🏢 4. Equivalent Static",
     "🧠 5. สรุป Mind Map (ESP)",
-    "📊 6. Dynamic Analysis"  
+    "📊 6. โฟลว์ชาร์ต Dynamic",
+    "⚙️ 7. คำนวณ Dynamic (Scaling)" # <-- แท็บใหม่
 ])
 
 # ─────────────────────────── TAB 1 ───────────────────────────
@@ -765,3 +766,91 @@ with tab_dynamic:
     
     # 3. แสดงผล Flowchart
     st.graphviz_chart(dynamic_flowchart_dot, use_container_width=True)
+
+# ───────────────────────────────────────────────────────────────────────────
+# TAB 7: หน้าคำนวณและปรับแก้ผลการวิเคราะห์พลศาสตร์ (Dynamic Analysis Calculation)
+# ───────────────────────────────────────────────────────────────────────────
+with tab_dynamic_calc:
+    st.header("⚙️ การปรับแก้ผลการวิเคราะห์ทางพลศาสตร์ (Response Spectrum Scaling)")
+    st.markdown("""
+    หน้าต่างนี้ใช้สำหรับนำผลลัพธ์จากซอฟต์แวร์วิเคราะห์โครงสร้าง 3 มิติ มาตรวจสอบการมีส่วนร่วมของมวล (Mass Participation) 
+    และคำนวณหาตัวคูณปรับแก้แรงเฉือนที่ฐาน (Base Shear Scale Factor) ให้สอดคล้องกับแรงเฉือนสถิตยศาสตร์เทียบเท่า (Equivalent Static Base Shear) ตามมาตรฐาน
+    """)
+    st.divider()
+
+    # สมมติฐานดึงค่า V_static จากแท็บก่อนหน้า (ถ้าไม่มีให้ตั้งค่าเริ่มต้น)
+    _v_stat = total_V if 'total_V' in locals() else 100.0
+
+    st.subheader("1. พารามิเตอร์เป้าหมาย (Target Parameters)")
+    col_t1, col_t2 = st.columns(2)
+    with col_t1:
+        v_static_input = st.number_input("แรงเฉือนสถิตยศาสตร์เทียบเท่า (V_static) [ตัน]", value=float(_v_stat), step=10.0)
+    with col_t2:
+        target_ratio = st.radio("เกณฑ์แรงเฉือนเป้าหมาย (Target Base Shear Limit)", 
+                                options=["100% ของ V_static (อาคารทั่วไป/ASCE 7-16)", "85% ของ V_static (อาคารมีความสม่ำเสมอ/มาตรฐานเดิม)"],
+                                index=0)
+    
+    target_multiplier = 1.0 if "100%" in target_ratio else 0.85
+    v_target = v_static_input * target_multiplier
+
+    st.info(f"💡 **แรงเฉือนเป้าหมายที่ต้องการ (Target Base Shear):** **{v_target:,.2f}** ตัน")
+    st.divider()
+
+    st.subheader("2. ข้อมูลจากซอฟต์แวร์ 3D Analysis (Modal & Response Spectrum Results)")
+    
+    # แบ่งคอลัมน์ซ้ายขวา สำหรับทิศทาง X และ Y
+    col_x, col_y = st.columns(2)
+    
+    with col_x:
+        st.markdown("#### 🎯 การวิเคราะห์ทิศทาง X (X-Direction)")
+        mass_part_x = st.number_input("มวลร่วมสะสม ทิศทาง X (Mass Participation X) [%]", min_value=0.0, max_value=100.0, value=90.0, step=1.0)
+        v_dynamic_x = st.number_input("แรงเฉือนพลศาสตร์ ทิศทาง X (V_dynamic X) [ตัน]", min_value=0.1, value=v_static_input*0.7, step=10.0)
+        
+        # ตรวจสอบ Mass Participation
+        if mass_part_x >= 90.0:
+            st.success(f"✅ มวลร่วม {mass_part_x:.1f}% (ผ่านเกณฑ์ $\ge$ 90%)")
+        else:
+            st.error(f"❌ มวลร่วม {mass_part_x:.1f}% (ไม่ผ่านเกณฑ์ 90% โปรดเพิ่มจำนวนโหมด N)")
+
+        # คำนวณ Scale Factor X
+        sf_x = v_target / v_dynamic_x
+        sf_x_final = max(1.0, sf_x) # ถ้า V_dyn > V_target ไม่ต้องลดค่า (ใช้ 1.0)
+        
+        st.metric(label="ตัวคูณปรับแก้ทิศทาง X (Scale Factor X)", value=f"{sf_x_final:.4f}")
+        if sf_x > 1.0:
+            st.caption(f"สมการ: $Scale\ Factor = \\frac{{{v_target:,.2f}}}{{{v_dynamic_x:,.2f}}}$")
+        else:
+            st.caption("แรงเฉือนพลศาสตร์มากกว่าเกณฑ์เป้าหมาย ไม่จำเป็นต้องปรับแก้ (ใช้ Scale Factor = 1.0)")
+
+    with col_y:
+        st.markdown("#### 🎯 การวิเคราะห์ทิศทาง Y (Y-Direction)")
+        mass_part_y = st.number_input("มวลร่วมสะสม ทิศทาง Y (Mass Participation Y) [%]", min_value=0.0, max_value=100.0, value=92.0, step=1.0)
+        v_dynamic_y = st.number_input("แรงเฉือนพลศาสตร์ ทิศทาง Y (V_dynamic Y) [ตัน]", min_value=0.1, value=v_static_input*0.8, step=10.0)
+        
+        # ตรวจสอบ Mass Participation
+        if mass_part_y >= 90.0:
+            st.success(f"✅ มวลร่วม {mass_part_y:.1f}% (ผ่านเกณฑ์ $\ge$ 90%)")
+        else:
+            st.error(f"❌ มวลร่วม {mass_part_y:.1f}% (ไม่ผ่านเกณฑ์ 90% โปรดเพิ่มจำนวนโหมด N)")
+
+        # คำนวณ Scale Factor Y
+        sf_y = v_target / v_dynamic_y
+        sf_y_final = max(1.0, sf_y)
+        
+        st.metric(label="ตัวคูณปรับแก้ทิศทาง Y (Scale Factor Y)", value=f"{sf_y_final:.4f}")
+        if sf_y > 1.0:
+            st.caption(f"สมการ: $Scale\ Factor = \\frac{{{v_target:,.2f}}}{{{v_dynamic_y:,.2f}}}$")
+        else:
+            st.caption("แรงเฉือนพลศาสตร์มากกว่าเกณฑ์เป้าหมาย ไม่จำเป็นต้องปรับแก้ (ใช้ Scale Factor = 1.0)")
+            
+    st.divider()
+    st.markdown("### 📌 สรุปผลการปรับแก้เพื่อนำไปตั้งค่าในซอฟต์แวร์ (ETABS / SAFE / STAAD)")
+    st.markdown(f"""
+    * **1. ทิศทาง X:** นำค่า Scale Factor = **{sf_x_final:.4f}** ไปคูณเข้ากับ Load Case ของ Response Spectrum ทิศทาง X 
+    * **2. ทิศทาง Y:** นำค่า Scale Factor = **{sf_y_final:.4f}** ไปคูณเข้ากับ Load Case ของ Response Spectrum ทิศทาง Y
+    * **3. โหมดรูปร่าง (Modal):** {'ผ่านเกณฑ์จำนวนโหมดแล้ว' if (mass_part_x >= 90 and mass_part_y >= 90) else '**จำเป็นต้องเพิ่มจำนวนโหมด (Number of Modes) ในการวิเคราะห์ให้มากขึ้น เนื่องจากมวลร่วมยังไม่ถึง 90%**'}
+    """)
+
+
+
+
