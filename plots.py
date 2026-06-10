@@ -125,6 +125,18 @@ def create_spectrum_plot(
         line=dict(color='gray', width=1.5, dash='dot')
     ))
 
+    # แรเงาโซนรูปทรงสเปกตรัม
+    if SDS > 0 and TS > 0:
+        fig.add_vrect(x0=0, x1=T0, fillcolor='rgba(59,130,246,0.05)', line_width=0,
+                      annotation_text="ช่วงขาขึ้น", annotation_position="bottom left",
+                      annotation_font_size=10, annotation_font_color="#1d4ed8")
+        fig.add_vrect(x0=T0, x1=TS, fillcolor='rgba(16,185,129,0.07)', line_width=0,
+                      annotation_text="Plateau (Sa = SDS)", annotation_position="top left",
+                      annotation_font_size=10, annotation_font_color="#047857")
+        fig.add_vrect(x0=TS, x1=max(T_values), fillcolor='rgba(245,158,11,0.05)', line_width=0,
+                      annotation_text="ช่วงขาลง (Sa = SD1/T)", annotation_position="top right",
+                      annotation_font_size=10, annotation_font_color="#b45309")
+
     fig.update_layout(
         title="<b>กราฟความเร่งตอบสนองเชิงสเปกตรัม (Design Response Spectrum)</b>",
         xaxis_title="<b>คาบเวลา T (วินาที)</b>",
