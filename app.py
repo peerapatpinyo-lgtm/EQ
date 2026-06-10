@@ -7,7 +7,8 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 
-from data_loader import load_data, STRUCTURAL_SYSTEMS, get_drift_limit
+from data_loader import (load_data, STRUCTURAL_SYSTEMS, get_drift_limit,
+                         SOFT_CLAY_PROVINCES, SOFT_CLAY_SPECTRUM, get_soft_clay_sa)
 import calculations as calc
 import plots
 
@@ -88,18 +89,23 @@ if site_class == 'F':
     st.stop()
 
 # ดึงหรือรับค่า Ss, S1
-SOFT_CLAY_PROVINCES = {
-    "กรุงเทพมหานคร", "นนทบุรี", "ปทุมธานี",
-    "สมุทรปราการ", "สมุทรสาคร", "สมุทรสงคราม", "นครปฐม", "ฉะเชิงเทรา"
-}
-if input_method == "ดึงจากฐานข้อมูล มยผ.":
-    if selected_province in SOFT_CLAY_PROVINCES:
-        st.warning(
-            "⚠️ **พื้นที่ดินเหนียวอ่อน (กทม. และปริมณฑล):** "
-            "ต้องใช้ Design Response Spectrum เฉพาะตาม **มยผ. 1302** โดยตรง "
-            "ไม่ใช่ Ss/S1 จากตาราง มยผ. 1301 โปรดอ้างอิงกราฟจากมาตรฐาน"
-        )
-        st.stop()
+# ตรวจสอบว่าเป็นพื้นที่ดินเหนียวอ่อนหรือไม่
+is_soft_clay = (
+    input_method == "ดึงจากฐานข้อมูล มยผ." and
+    selected_province in SOFT_CLAY_PROVINCES
+)
+
+if is_soft_clay:
+    # พื้นที่ดินเหนียวอ่อน: ใช้พารามิเตอร์คงที่จาก มยผ. 1302 โดยตรง
+    Ss = SOFT_CLAY_SPECTRUM["SDS"]   # ใช้เป็นค่าอ้างอิง (SDS_bkk)
+    S1 = SOFT_CLAY_SPECTRUM["SD1_eff"] / SOFT_CLAY_SPECTRUM["TL"]  # ≈ 0.20 g
+    Fa = 1.0; Fv = 1.0   # ไม่ใช้ตาราง Fa/Fv (สเปกตรัมกำหนดโดยตรง)
+    SMS = Ss; SM1 = S1
+    SDS = SOFT_CLAY_SPECTRUM["SDS"]
+    SD1 = SOFT_CLAY_SPECTRUM["SD1_eff"]
+    T0  = SOFT_CLAY_SPECTRUM["T0"]
+    TS  = SOFT_CLAY_SPECTRUM["TS"]
+elif input_method == "ดึงจากฐานข้อมูล มยผ.":
     row = df_location[
         (df_location['Province'] == selected_province) &
         (df_location['District'] == selected_district)
@@ -113,14 +119,15 @@ else:
 # ═══════════════════════════════════════════════════════════════════════════════
 # Engine — คำนวณพารามิเตอร์หลัก
 # ═══════════════════════════════════════════════════════════════════════════════
-Fa, Fv = calc.get_site_coefficients(site_class, Ss, S1)
-SMS = Fa * Ss
-SM1 = Fv * S1
-SDS = (2.0 / 3.0) * SMS
-SD1 = (2.0 / 3.0) * SM1
-
-T0 = 0.2 * (SD1 / SDS) if SDS > 0 else 0.0
-TS = SD1 / SDS if SDS > 0 else 0.0
+if not is_soft_clay:
+    Fa, Fv = calc.get_site_coefficients(site_class, Ss, S1)
+    SMS = Fa * Ss
+    SM1 = Fv * S1
+    SDS = (2.0 / 3.0) * SMS
+    SD1 = (2.0 / 3.0) * SM1
+    T0  = 0.2 * (SD1 / SDS) if SDS > 0 else 0.0
+    TS  = SD1 / SDS if SDS > 0 else 0.0
+# is_soft_clay: SDS, SD1, T0, TS, Fa, Fv already set above from SOFT_CLAY_SPECTRUM
 
 Ta       = calc.calculate_approx_period(sys_type, building_height)
 T_design = calc.get_period_upper_bound(SD1, Ta)   # = Cu·Ta
@@ -145,28 +152,55 @@ tab1, tab2, tab3, tab4, tab5 = st.tabs([
 # ╔══════════════════════════════════════════════════════════════════════════════
 with tab1:
     st.header("📋 รายการคำนวณพารามิเตอร์ Response Spectrum")
-    st.markdown(
-        f"อ้างอิงมาตรฐาน **มยผ. 1301-61** | "
-        f"สถานที่: **อ.{selected_district}  จ.{selected_province}** | "
-        f"ชั้นดิน: **{site_class}** | Ie = **{importance_factor}**"
-    )
 
-    # ── ขั้นที่ 1: Ss, S1 ─────────────────────────────────────────────────────
-    with st.expander("ขั้นที่ 1 — ความเร่งตอบสนองสเปกตรัมระดับหินฐาน", expanded=True):
-        c1, c2 = st.columns(2)
-        c1.metric("Ss — ความเร่งที่คาบ 0.2 s", f"{Ss:.3f} g")
-        c2.metric("S1 — ความเร่งที่คาบ 1.0 s", f"{S1:.3f} g")
-        if S1 >= 0.60:
-            st.warning(f"⚠️ S1 = {S1:.3f} g ≥ 0.60 g → เงื่อนไขพิเศษ Cs,min จะถูกนำมาใช้ใน Tab 4")
-        if S1 >= 0.75:
-            st.error(f"🛑 S1 = {S1:.3f} g ≥ 0.75 g → บังคับ SDC ง ทันที")
+    if is_soft_clay:
+        st.error(
+            "🏙️ **พื้นที่ดินเหนียวอ่อน — มยผ. 1302-61** | "
+            f"จ.**{selected_province}** | "
+            "สเปกตรัมกำหนดโดยตรงจากมาตรฐาน **ไม่ใช้** Fa/Fv จากตาราง มยผ. 1301"
+        )
+    else:
+        st.markdown(
+            f"อ้างอิงมาตรฐาน **มยผ. 1301-61** | "
+            f"สถานที่: **อ.{selected_district}  จ.{selected_province}** | "
+            f"ชั้นดิน: **{site_class}** | Ie = **{importance_factor}**"
+        )
 
-    # ── ขั้นที่ 2: Fa, Fv ────────────────────────────────────────────────────
-    with st.expander("ขั้นที่ 2 — ตัวคูณขยายอิทธิพลชั้นดิน Fa และ Fv", expanded=True):
-        st.markdown(f"ประเมินสำหรับชั้นดิน **{site_class}** ด้วย Linear Interpolation จากตาราง มยผ.")
-        c3, c4 = st.columns(2)
-        c3.metric(f"Fa (จาก Ss = {Ss:.3f} g)", f"{Fa:.3f}")
-        c4.metric(f"Fv (จาก S1 = {S1:.3f} g)", f"{Fv:.3f}")
+    # ── ขั้นที่ 1: Ss, S1 / มยผ. 1302 Parameters ────────────────────────────
+    if is_soft_clay:
+        with st.expander("ขั้นที่ 1 — พารามิเตอร์สเปกตรัม มยผ. 1302 (ดินเหนียวอ่อน)", expanded=True):
+            p = SOFT_CLAY_SPECTRUM
+            c1, c2, c3, c4 = st.columns(4)
+            c1.metric("SDS (Plateau)", f"{p['SDS']:.2f} g")
+            c2.metric("T₀ (เริ่ม Plateau)", f"{p['T0']:.2f} s")
+            c3.metric("TL (สิ้นสุด Plateau)", f"{p['TL']:.2f} s")
+            c4.metric("SD1_eff = SDS × TL", f"{p['SD1_eff']:.2f} g")
+            st.caption(
+                f"ที่มา: {p['source']} — สเปกตรัมนี้สะท้อนการขยายคลื่นในชั้นดินเหนียวอ่อน "
+                f"ซึ่งทำให้ช่วง Plateau ยาวมาก ({p['T0']} – {p['TL']} วินาที)"
+            )
+    else:
+        with st.expander("ขั้นที่ 1 — ความเร่งตอบสนองสเปกตรัมระดับหินฐาน", expanded=True):
+            c1, c2 = st.columns(2)
+            c1.metric("Ss — ความเร่งที่คาบ 0.2 s", f"{Ss:.3f} g")
+            c2.metric("S1 — ความเร่งที่คาบ 1.0 s", f"{S1:.3f} g")
+            if S1 >= 0.60:
+                st.warning(f"⚠️ S1 = {S1:.3f} g ≥ 0.60 g → เงื่อนไขพิเศษ Cs,min จะถูกนำมาใช้ใน Tab 4")
+            if S1 >= 0.75:
+                st.error(f"🛑 S1 = {S1:.3f} g ≥ 0.75 g → บังคับ SDC ง ทันที")
+
+    # ── ขั้นที่ 2: Fa, Fv — ข้ามสำหรับดินเหนียวอ่อน ──────────────────────
+    if not is_soft_clay:
+        with st.expander("ขั้นที่ 2 — ตัวคูณขยายอิทธิพลชั้นดิน Fa และ Fv", expanded=True):
+            st.markdown(f"ประเมินสำหรับชั้นดิน **{site_class}** ด้วย Linear Interpolation จากตาราง มยผ.")
+            c3, c4 = st.columns(2)
+            c3.metric(f"Fa (จาก Ss = {Ss:.3f} g)", f"{Fa:.3f}")
+            c4.metric(f"Fv (จาก S1 = {S1:.3f} g)", f"{Fv:.3f}")
+    else:
+        with st.expander("ขั้นที่ 2 — ตัวคูณขยายอิทธิพลชั้นดิน Fa และ Fv", expanded=False):
+            st.info("ℹ️ **ไม่ใช้ Fa/Fv** สำหรับพื้นที่ดินเหนียวอ่อน — "
+                    "มยผ. 1302 กำหนดรูปทรงสเปกตรัมสำเร็จรูปโดยตรง "
+                    "โดยรวมผลขยายของชั้นดินไว้แล้ว")
 
     # ── ขั้นที่ 3: SMS, SM1, SDS, SD1 ───────────────────────────────────────
     with st.expander("ขั้นที่ 3 — ความเร่งสเปกตรัมออกแบบ SDS และ SD1", expanded=True):
@@ -300,21 +334,32 @@ with tab3:
         st.info("💡 อาคาร SDC ประเภท ก ไม่ต้องวิเคราะห์สเปกตรัมเต็มรูปแบบ "
                 "(แสดงไว้เพื่ออ้างอิง)")
 
-    T_plot    = np.linspace(0.0, max(4.0, Ta * 2.0, TS * 3.0), 800)
-    Sa_plot   = np.array([calc.compute_spectrum_sa(t, SDS, SD1, T0, TS) for t in T_plot])
-    Sa_Ta     = calc.compute_spectrum_sa(Ta, SDS, SD1, T0, TS)
-    Sa_Td     = calc.compute_spectrum_sa(T_design, SDS, SD1, T0, TS)
-
-    fig_spec = plots.create_spectrum_plot(
-        T_plot, Sa_plot, Ta, T_design, Sa_Ta, Sa_Td, T0, TS, SDS, SD1
-    )
+    if is_soft_clay:
+        Sa_Ta  = get_soft_clay_sa(Ta)
+        Sa_Td  = get_soft_clay_sa(T_design)
+        fig_spec = plots.create_soft_clay_spectrum_plot(Ta, T_design, Sa_Ta, Sa_Td)
+    else:
+        T_plot  = np.linspace(0.0, max(4.0, Ta * 2.0, TS * 3.0), 800)
+        Sa_plot = np.array([calc.compute_spectrum_sa(t, SDS, SD1, T0, TS) for t in T_plot])
+        Sa_Ta   = calc.compute_spectrum_sa(Ta, SDS, SD1, T0, TS)
+        Sa_Td   = calc.compute_spectrum_sa(T_design, SDS, SD1, T0, TS)
+        fig_spec = plots.create_spectrum_plot(
+            T_plot, Sa_plot, Ta, T_design, Sa_Ta, Sa_Td, T0, TS, SDS, SD1
+        )
     st.plotly_chart(fig_spec, use_container_width=True)
 
     # ตารางค่าที่คาบสำคัญ
     with st.expander("ตารางค่า Sa ณ คาบสำคัญ"):
-        key_T = [0.0, T0, TS, Ta, T_design, 1.0, 2.0, 3.0, 4.0]
-        key_T = sorted(set([round(t, 4) for t in key_T if t >= 0]))
-        rows  = [(t, calc.compute_spectrum_sa(t, SDS, SD1, T0, TS)) for t in key_T]
+        p1302 = SOFT_CLAY_SPECTRUM
+        key_T = sorted(set([round(t, 4) for t in
+            ([0.0, p1302["T0"], p1302["TL"], Ta, T_design, 1.0, 2.0, 3.0, 4.0]
+             if is_soft_clay else
+             [0.0, T0, TS, Ta, T_design, 1.0, 2.0, 3.0, 4.0])
+            if t >= 0]))
+        if is_soft_clay:
+            rows = [(t, get_soft_clay_sa(t)) for t in key_T]
+        else:
+            rows = [(t, calc.compute_spectrum_sa(t, SDS, SD1, T0, TS)) for t in key_T]
         st.dataframe(
             pd.DataFrame(rows, columns=["T (s)", "Sa (g)"]).style.format({"T (s)": "{:.4f}", "Sa (g)": "{:.4f}"}),
             use_container_width=True, hide_index=True
@@ -366,30 +411,53 @@ with tab4:
     # ── Cs ────────────────────────────────────────────────────────────────────
     st.subheader("ขั้นที่ 2 — สัมประสิทธิ์แรงเฉือนที่ฐาน Cs")
 
-    cs = calc.compute_cs(SDS, SD1, S1, T_design, R_sys, importance_factor, TS)
+    if is_soft_clay:
+        cs = calc.compute_cs_soft_clay(T_design, R_sys, importance_factor)
+    else:
+        cs = calc.compute_cs(SDS, SD1, S1, T_design, R_sys, importance_factor, TS)
 
     with st.container(border=True):
         st.markdown("**สูตรและผลลัพธ์ Cs**")
-        ce1, ce2 = st.columns(2)
-        with ce1:
-            st.latex(
-                rf"C_{{s,basic}} = \frac{{S_{{DS}}}}{{R/I_e}} "
-                rf"= \frac{{{SDS:.4f}}}{{{R_sys:.1f}/{importance_factor:.2f}}} = {cs['cs_basic']:.5f}"
+        if is_soft_clay:
+            st.info(
+                "🏙️ **มยผ. 1302 (ดินเหนียวอ่อน):** Cs คำนวณจาก Sa(T_design) ของสเปกตรัม มยผ. 1302 โดยตรง"
             )
-            st.latex(
-                rf"C_{{s,max}} = \frac{{S_{{D1}}}}{{T_{{design}} \cdot (R/I_e)}} "
-                rf"= \frac{{{SD1:.4f}}}{{{T_design:.4f} \times {cs['RIe']:.3f}}} = {cs['cs_max']:.5f}"
-            )
-        with ce2:
-            st.latex(
-                rf"C_{{s,min}} = \max(0.01,\ 0.044 S_{{DS}} I_e) = {cs['cs_min']:.5f}"
-            )
-            if S1 >= 0.6:
+            ce1, ce2 = st.columns(2)
+            with ce1:
                 st.latex(
-                    rf"C_{{s,min,S1}} = \frac{{0.5 S_1}}{{R/I_e}} "
-                    rf"= \frac{{0.5 \times {S1:.3f}}}{{{cs['RIe']:.3f}}} = {cs['cs_min_s1']:.5f}"
+                    rf"Sa(T_{{design}}) = {cs['Sa_T']:.4f}\ \text{{g}} "
+                    rf"\quad (T_{{design}} = {T_design:.3f}\ \text{{s}})"
                 )
-                st.caption("S1 ≥ 0.6 g → นำ Cs,min,S1 มาเปรียบเทียบด้วย")
+                st.latex(
+                    rf"C_{{s,basic}} = \frac{{Sa(T)}}{{{R_sys:.1f}/{importance_factor:.2f}}} "
+                    rf"= \frac{{{cs['Sa_T']:.4f}}}{{{cs['RIe']:.3f}}} = {cs['cs_basic']:.5f}"
+                )
+            with ce2:
+                st.latex(
+                    rf"C_{{s,min}} = \max(0.01,\ 0.044 \times {cs['SDS_bkk']:.2f} \times {importance_factor:.2f}) "
+                    rf"= {cs['cs_min']:.5f}"
+                )
+        else:
+            ce1, ce2 = st.columns(2)
+            with ce1:
+                st.latex(
+                    rf"C_{{s,basic}} = \frac{{S_{{DS}}}}{{R/I_e}} "
+                    rf"= \frac{{{SDS:.4f}}}{{{R_sys:.1f}/{importance_factor:.2f}}} = {cs['cs_basic']:.5f}"
+                )
+                st.latex(
+                    rf"C_{{s,max}} = \frac{{S_{{D1}}}}{{T_{{design}} \cdot (R/I_e)}} "
+                    rf"= \frac{{{SD1:.4f}}}{{{T_design:.4f} \times {cs['RIe']:.3f}}} = {cs['cs_max']:.5f}"
+                )
+            with ce2:
+                st.latex(
+                    rf"C_{{s,min}} = \max(0.01,\ 0.044 S_{{DS}} I_e) = {cs['cs_min']:.5f}"
+                )
+                if S1 >= 0.6:
+                    st.latex(
+                        rf"C_{{s,min,S1}} = \frac{{0.5 S_1}}{{R/I_e}} "
+                        rf"= \frac{{0.5 \times {S1:.3f}}}{{{cs['RIe']:.3f}}} = {cs['cs_min_s1']:.5f}"
+                    )
+                    st.caption("S1 ≥ 0.6 g → นำ Cs,min,S1 มาเปรียบเทียบด้วย")
 
     mc1, mc2, mc3 = st.columns(3)
     mc1.metric("Cs ที่ควบคุม", f"{cs['cs_gov']:.5f}", cs['controls'])
