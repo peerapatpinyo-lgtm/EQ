@@ -45,22 +45,50 @@ def get_roadmap_dot() -> str:
     """
 
 def create_spectrum_plot(T_values: np.ndarray, Sa_values: np.ndarray, Ta: float, Sa_Ta: float, T0: float, TS: float, SDS: float) -> go.Figure:
-    """สร้างกราฟ Design Response Spectrum"""
+    """สร้างกราฟ Design Response Spectrum (ปรับปรุงใหม่)"""
     fig = go.Figure()
+    
+    # วาดเส้นกราฟหลักและแรเงาพื้นที่ใต้กราฟ
     fig.add_trace(go.Scatter(
-        x=T_values, y=Sa_values, mode='lines', name='Design Spectrum',
-        line=dict(color='#1f77b4', width=3)
+        x=T_values, y=Sa_values, mode='lines', fill='tozeroy', 
+        name='Design Spectrum',
+        line=dict(color='#1f77b4', width=3),
+        fillcolor='rgba(31, 119, 180, 0.15)'
     ))
+    
+    # เพิ่มจุดควบคุม T0 และ TS พร้อมเส้นไกด์ไลน์แนวตั้ง
     if SDS > 0:
         fig.add_trace(go.Scatter(
-            x=[T0, TS], y=[SDS, SDS], mode='markers', name='จุดควบคุม (T0, TS)',
-            marker=dict(color='red', size=8, symbol='circle')
+            x=[T0, TS], y=[SDS, SDS], mode='markers+text', 
+            name='จุดควบคุม (T0, TS)',
+            text=['T0', 'TS'], textposition="top center",
+            marker=dict(color='#ef4444', size=10, symbol='circle')
         ))
+        fig.add_vline(x=T0, line_dash="dash", line_color="gray", opacity=0.5)
+        fig.add_vline(x=TS, line_dash="dash", line_color="gray", opacity=0.5)
+        
+    # เพิ่มพิกัดจุดคาบเวลาของอาคาร (Ta) และเส้นนำสายตาไปที่แกน X, Y
     fig.add_trace(go.Scatter(
-        x=[Ta], y=[Sa_Ta], mode='markers+text', name='จุดพิกัดอาคาร (Ta)',
-        text=[f'Ta = {Ta:.2f} s<br>Sa = {Sa_Ta:.3f} g'], textposition="top right",
-        marker=dict(color='#ff7f0e', size=14, symbol='star', line=dict(width=2, color='DarkSlateGrey'))
+        x=[Ta], y=[Sa_Ta], mode='markers+text', name='พิกัดอาคาร (Ta)',
+        text=[f'Ta = {Ta:.3f} s<br>Sa = {Sa_Ta:.3f} g'], textposition="top right",
+        marker=dict(color='#ff7f0e', size=14, symbol='star', line=dict(width=2, color='Black'))
     ))
+    fig.add_shape(type="line", x0=0, y0=Sa_Ta, x1=Ta, y1=Sa_Ta, line=dict(color="#ff7f0e", width=1.5, dash="dot"))
+    fig.add_shape(type="line", x0=Ta, y0=0, x1=Ta, y1=Sa_Ta, line=dict(color="#ff7f0e", width=1.5, dash="dot"))
+    
+    # เพิ่มข้อความอธิบายโซนพฤติกรรมโครงสร้าง
+    if TS > 0 and max(T_values) > TS:
+        fig.add_annotation(
+            x=(T0+TS)/2, y=SDS/2, 
+            text="<b>โหมดความเร่งคงที่</b><br>(Constant Acceleration)", 
+            showarrow=False, opacity=0.4, font=dict(size=12, color='black')
+        )
+        fig.add_annotation(
+            x=TS + (max(T_values)-TS)/3, y=SDS/4, 
+            text="<b>โหมดความเร็วคงที่</b><br>(Constant Velocity)", 
+            showarrow=False, opacity=0.4, font=dict(size=12, color='black')
+        )
+
     fig.update_layout(
         title="<b>กราฟความเร่งสเปกตรัมตอบสนองสำหรับการออกแบบ (Design Response Spectrum)</b>",
         xaxis_title="<b>คาบเวลาโครงสร้าง, T (วินาที)</b>",
@@ -69,8 +97,7 @@ def create_spectrum_plot(T_values: np.ndarray, Sa_values: np.ndarray, Ta: float,
         legend=dict(yanchor="top", y=0.99, xanchor="right", x=0.99,
                     bgcolor="rgba(255,255,255,0.8)", bordercolor="Black", borderwidth=1),
         xaxis=dict(showgrid=True, gridwidth=1, gridcolor='LightGray', zeroline=True, zerolinecolor='Black'),
-        yaxis=dict(showgrid=True, gridwidth=1, gridcolor='LightGray', zeroline=True,
-                   zerolinecolor='Black', rangemode='tozero')
+        yaxis=dict(showgrid=True, gridwidth=1, gridcolor='LightGray', zeroline=True, zerolinecolor='Black', rangemode='tozero')
     )
     return fig
 
