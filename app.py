@@ -59,14 +59,17 @@ def calculate_approx_period(sys_type: str, hn: float) -> float:
     Ct, x = params.get(sys_type, (0.0488, 0.75))
     return Ct * (hn ** x)
 
-def evaluate_sdc(SDS: float, SD1: float, Ie: float) -> str:
+def evaluate_sdc_detailed(SDS: float, SD1: float, Ie: float) -> tuple:
+    """ฟังก์ชันประเมินประเภทการออกแบบ (SDC) พร้อมคืนค่ารายละเอียดการคิดแต่ละเงื่อนไข"""
     is_essential = (Ie >= 1.5)
     
+    # เงื่อนไขจาก SDS
     if SDS < 0.167: sdc_sds = 'ก'
     elif SDS < 0.33: sdc_sds = 'ค' if is_essential else 'ข'
     elif SDS < 0.50: sdc_sds = 'ง' if is_essential else 'ค'
     else: sdc_sds = 'ง'
         
+    # เงื่อนไขจาก SD1
     if SD1 < 0.067: sdc_sd1 = 'ก'
     elif SD1 < 0.133: sdc_sd1 = 'ค' if is_essential else 'ข'
     elif SD1 < 0.20: sdc_sd1 = 'ง' if is_essential else 'ค'
@@ -75,9 +78,11 @@ def evaluate_sdc(SDS: float, SD1: float, Ie: float) -> str:
     sdc_order = {'ก': 1, 'ข': 2, 'ค': 3, 'ง': 4}
     max_val = max(sdc_order[sdc_sds], sdc_order[sdc_sd1])
     
+    sdc_final = 'ก'
     for cat, val in sdc_order.items():
-        if val == max_val: return cat
-    return 'ก'
+        if val == max_val: sdc_final = cat
+        
+    return sdc_final, sdc_sds, sdc_sd1
 
 # ==========================================
 # 4. ส่วนรับข้อมูลผู้ใช้งาน (Sidebar Inputs)
@@ -86,7 +91,6 @@ with st.sidebar:
     st.header("⚙️ ข้อมูลการออกแบบ")
     
     st.subheader("1. ข้อมูลสถานที่ตั้ง")
-    # เพิ่มตัวเลือกว่าจะกรอกเองหรือดึงจากฐานข้อมูล
     input_method = st.radio("รูปแบบการนำเข้าพารามิเตอร์", ["ดึงจากฐานข้อมูล", "กรอกค่า Ss, S1 ด้วยตนเอง"])
     
     if input_method == "ดึงจากฐานข้อมูล":
@@ -118,7 +122,6 @@ if site_class == 'F':
     st.error("🛑 ชั้นดิน F ต้องเจาะสำรวจประเมินเฉพาะพื้นที่ (Site-Specific) เท่านั้น ไม่สามารถใช้ค่าคำนวณมาตรฐานได้")
     st.stop()
 
-# ประมวลผลค่า Ss และ S1 ตามเงื่อนไขที่เลือก
 if input_method == "ดึงจากฐานข้อมูล":
     if selected_province == "กรุงเทพมหานคร":
         st.warning("⚠️ สำหรับพื้นที่ดินเหนียวอ่อนกรุงเทพฯ ต้องใช้ Response Spectrum เฉพาะตาม มยผ. 1302 โปรดอ้างอิงกราฟจากมาตรฐานโดยตรง")
@@ -138,14 +141,32 @@ T0 = 0.2 * (SD1 / SDS) if SDS > 0 else 0
 TS = SD1 / SDS if SDS > 0 else 0
 Ta = calculate_approx_period(sys_type, building_height)
 
-# ประเมินประเภทการออกแบบแผ่นดินไหว (SDC)
-sdc = evaluate_sdc(SDS, SD1, importance_factor)
+# --- 🚀 ประเมินประเภทการออกแบบแผ่นดินไหว (SDC) พร้อมแสดงที่มา ---
+sdc, sdc_sds, sdc_sd1 = evaluate_sdc_detailed(SDS, SD1, importance_factor)
 
 st.header("🛡️ ผลการประเมินประเภทการออกแบบ (Seismic Design Category)")
 
+# กล่องขยายแสดงวิธีการประเมิน (ที่มาของการจัดประเภท)
+with st.expander("🔍 ดูวิธีพิจารณาประเภทการออกแบบของอาคารนี้ (คลิกเพื่อขยาย)", expanded=True):
+    st.markdown(f"**ปัจจัยสำคัญ:** ตัวคูณความสำคัญของอาคาร ($I_e$) = **{importance_factor}** *(หมายเหตุ: หาก $I_e \ge 1.5$ มาตรฐานจะยกระดับความเสี่ยงขึ้นหนึ่งระดับเพื่อให้ปลอดภัยยิ่งขึ้น)*")
+    
+    col_sdc1, col_sdc2 = st.columns(2)
+    with col_sdc1:
+        st.markdown(f"**1. พิจารณาจากความเร่งคาบสั้น ($S_{{DS}}$)**")
+        st.markdown(f"- ค่าที่คำนวณได้: $S_{{DS}} =$ **{SDS:.3f} g**")
+        st.markdown(f"👉 ตกเกณฑ์การประเมิน: **ประเภท {sdc_sds}**")
+        
+    with col_sdc2:
+        st.markdown(f"**2. พิจารณาจากความเร่งคาบยาว ($S_{{D1}}$)**")
+        st.markdown(f"- ค่าที่คำนวณได้: $S_{{D1}} =$ **{SD1:.3f} g**")
+        st.markdown(f"👉 ตกเกณฑ์การประเมิน: **ประเภท {sdc_sd1}**")
+        
+    st.info(f"💡 **สรุปผล:** นำผลจากทั้งสองเงื่อนไขมาเปรียบเทียบกัน และเลือกประเภทที่ **เข้มงวดที่สุด** $\\rightarrow$ ดังนั้นอาคารนี้จึงจัดอยู่ใน **ประเภท {sdc}**")
+
+# สรุปผลลัพธ์ว่าต้องทำอย่างไรต่อ
 if sdc == 'ก':
     st.success(f"✅ **อาคารนี้จัดอยู่ในประเภทการออกแบบ: '{sdc}' (SDC A) - ความเสี่ยงต่ำมาก**")
-    st.info("💡 **ข้อกำหนด มยผ.:** อาคารประเภท 'ก' ไม่ต้องวิเคราะห์แรงแผ่นดินไหวแบบเต็มรูปแบบ ให้คิดแรงกระทำด้านข้างอย่างน้อย **1% ของน้ำหนักอาคาร ($0.01W$)** ก็เพียงพอ")
+    st.markdown("💡 **ข้อกำหนด มยผ.:** อาคารประเภท 'ก' ไม่ต้องวิเคราะห์แรงแผ่นดินไหวแบบเต็มรูปแบบ ให้คิดแรงกระทำด้านข้างอย่างน้อย **1% ของน้ำหนักอาคาร ($0.01W$)** ก็เพียงพอ")
     v_min_sdc_a = 0.01 * building_weight
     st.metric("แรงเฉือนที่ฐานขั้นต่ำ (1% W)", f"{v_min_sdc_a:,.2f} ตัน")
     st.stop()
