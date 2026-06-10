@@ -770,87 +770,195 @@ with tab_dynamic:
 # ───────────────────────────────────────────────────────────────────────────
 # TAB 7: หน้าคำนวณและปรับแก้ผลการวิเคราะห์พลศาสตร์ (Dynamic Analysis Calculation)
 # ───────────────────────────────────────────────────────────────────────────
+
+# ───────────────────────────────────────────────────────────────────────────
+# TAB 7: คำนวณ Dynamic และตรวจสอบเสถียรภาพขั้นสูง (Advanced Dynamic & Stability Review)
+# ───────────────────────────────────────────────────────────────────────────
 with tab_dynamic_calc:
-    st.header("⚙️ การปรับแก้ผลการวิเคราะห์ทางพลศาสตร์ (Response Spectrum Scaling)")
+    st.header("⚙️ การวิเคราะห์พลศาสตร์และการประเมินเสถียรภาพขั้นสูง (Advanced Dynamic & Stability)")
     st.markdown("""
-    หน้าต่างนี้ใช้สำหรับนำผลลัพธ์จากซอฟต์แวร์วิเคราะห์โครงสร้าง 3 มิติ มาตรวจสอบการมีส่วนร่วมของมวล (Mass Participation) 
-    และคำนวณหาตัวคูณปรับแก้แรงเฉือนที่ฐาน (Base Shear Scale Factor) ให้สอดคล้องกับแรงเฉือนสถิตยศาสตร์เทียบเท่า (Equivalent Static Base Shear) ตามมาตรฐาน
+    เครื่องมือตรวจสอบและปรับแก้ผลลัพธ์จากซอฟต์แวร์วิเคราะห์โครงสร้าง 3 มิติ (ETABS/Midas) ร่วมกับการคำนวณเสถียรภาพอาคารรายชั้น 
+    ตามข้อกำหนดมาตรฐาน มยผ. และ ASCE 7
     """)
     st.divider()
 
-    # สมมติฐานดึงค่า V_static จากแท็บก่อนหน้า (ถ้าไม่มีให้ตั้งค่าเริ่มต้น)
+    # --- ส่วนที่ 1: ดักจับและเตรียมตัวคูณพื้นฐาน ---
     _v_stat = total_V if 'total_V' in locals() else 100.0
+    _Cd = Cd if 'Cd' in locals() else 4.5
+    _Ie = importance_factor if 'importance_factor' in locals() else 1.0
+    limit_pct = (0.010 if _Ie >= 1.5 else (0.015 if _Ie >= 1.25 else 0.020)) * 100
 
-    st.subheader("1. พารามิเตอร์เป้าหมาย (Target Parameters)")
+    # =======================================================================
+    # 🎯 SECTION 1: Base Shear Scaling (การปรับแก้แรงเฉือนที่ฐาน)
+    # =======================================================================
+    st.subheader("1. การปรับแก้แรงเฉือนที่ฐาน (Base Shear Scaling)")
+    
     col_t1, col_t2 = st.columns(2)
     with col_t1:
         v_static_input = st.number_input("แรงเฉือนสถิตยศาสตร์เทียบเท่า (V_static) [ตัน]", value=float(_v_stat), step=10.0)
     with col_t2:
         target_ratio = st.radio("เกณฑ์แรงเฉือนเป้าหมาย (Target Base Shear Limit)", 
-                                options=["100% ของ V_static (อาคารทั่วไป/ASCE 7-16)", "85% ของ V_static (อาคารมีความสม่ำเสมอ/มาตรฐานเดิม)"],
+                                options=["100% ของ V_static (มาตรฐาน มยผ. / ASCE 7-16)", "85% ของ V_static (กรณีอาคารสม่ำเสมอมาก)"],
                                 index=0)
     
     target_multiplier = 1.0 if "100%" in target_ratio else 0.85
     v_target = v_static_input * target_multiplier
+    st.info(f"📊 **แรงเฉือนเป้าหมายขั้นต่ำที่ต้องใช้ในการออกแบบ (Target V): {v_target:,.2f} ตัน**")
 
-    st.info(f"💡 **แรงเฉือนเป้าหมายที่ต้องการ (Target Base Shear):** **{v_target:,.2f}** ตัน")
-    st.divider()
-
-    st.subheader("2. ข้อมูลจากซอฟต์แวร์ 3D Analysis (Modal & Response Spectrum Results)")
-    
-    # แบ่งคอลัมน์ซ้ายขวา สำหรับทิศทาง X และ Y
+    # รับค่าแรงเฉือนพลศาสตร์แยกทิศทาง X / Y
     col_x, col_y = st.columns(2)
-    
     with col_x:
-        st.markdown("#### 🎯 การวิเคราะห์ทิศทาง X (X-Direction)")
-        mass_part_x = st.number_input("มวลร่วมสะสม ทิศทาง X (Mass Participation X) [%]", min_value=0.0, max_value=100.0, value=90.0, step=1.0)
-        v_dynamic_x = st.number_input("แรงเฉือนพลศาสตร์ ทิศทาง X (V_dynamic X) [ตัน]", min_value=0.1, value=v_static_input*0.7, step=10.0)
+        st.markdown("**ทิศทาง X (X-Axis Analysis)**")
+        mass_part_x = st.number_input("มวลร่วมสะสม X (Mass Participation X) [%]", min_value=0.0, max_value=100.0, value=92.5, step=1.0)
+        v_dynamic_x = st.number_input("แรงเฉือนพลศาสตร์ X (V_dynamic X) [ตัน]", min_value=0.1, value=v_static_input*0.75, step=5.0)
         
-        # ตรวจสอบ Mass Participation
+        sf_x = max(1.0, v_target / v_dynamic_x)
         if mass_part_x >= 90.0:
-            st.success(f"✅ มวลร่วม {mass_part_x:.1f}% (ผ่านเกณฑ์ $\ge$ 90%)")
+            st.success(f"✅ Mass Participation X ({mass_part_x}%) ผ่านเกณฑ์ ≥ 90%")
         else:
-            st.error(f"❌ มวลร่วม {mass_part_x:.1f}% (ไม่ผ่านเกณฑ์ 90% โปรดเพิ่มจำนวนโหมด N)")
-
-        # คำนวณ Scale Factor X
-        sf_x = v_target / v_dynamic_x
-        sf_x_final = max(1.0, sf_x) # ถ้า V_dyn > V_target ไม่ต้องลดค่า (ใช้ 1.0)
-        
-        st.metric(label="ตัวคูณปรับแก้ทิศทาง X (Scale Factor X)", value=f"{sf_x_final:.4f}")
-        if sf_x > 1.0:
-            st.caption(f"สมการ: $Scale\ Factor = \\frac{{{v_target:,.2f}}}{{{v_dynamic_x:,.2f}}}$")
-        else:
-            st.caption("แรงเฉือนพลศาสตร์มากกว่าเกณฑ์เป้าหมาย ไม่จำเป็นต้องปรับแก้ (ใช้ Scale Factor = 1.0)")
+            st.error(f"❌ Mass Participation X ({mass_part_x}%) ต่ำกว่าเกณฑ์! โปรดเพิ่มจำนวน Mode")
+        st.metric("Scale Factor X", f"{sf_x:.4f}")
 
     with col_y:
-        st.markdown("#### 🎯 การวิเคราะห์ทิศทาง Y (Y-Direction)")
-        mass_part_y = st.number_input("มวลร่วมสะสม ทิศทาง Y (Mass Participation Y) [%]", min_value=0.0, max_value=100.0, value=92.0, step=1.0)
-        v_dynamic_y = st.number_input("แรงเฉือนพลศาสตร์ ทิศทาง Y (V_dynamic Y) [ตัน]", min_value=0.1, value=v_static_input*0.8, step=10.0)
+        st.markdown("**ทิศทาง Y (Y-Axis Analysis)**")
+        mass_part_y = st.number_input("มวลร่วมสะสม Y (Mass Participation Y) [%]", min_value=0.0, max_value=100.0, value=91.2, step=1.0)
+        v_dynamic_y = st.number_input("แรงเฉือนพลศาสตร์ Y (V_dynamic Y) [ตัน]", min_value=0.1, value=v_static_input*0.78, step=5.0)
         
-        # ตรวจสอบ Mass Participation
+        sf_y = max(1.0, v_target / v_dynamic_y)
         if mass_part_y >= 90.0:
-            st.success(f"✅ มวลร่วม {mass_part_y:.1f}% (ผ่านเกณฑ์ $\ge$ 90%)")
+            st.success(f"✅ Mass Participation Y ({mass_part_y}%) ผ่านเกณฑ์ ≥ 90%")
         else:
-            st.error(f"❌ มวลร่วม {mass_part_y:.1f}% (ไม่ผ่านเกณฑ์ 90% โปรดเพิ่มจำนวนโหมด N)")
+            st.error(f"❌ Mass Participation Y ({mass_part_y}%) ต่ำกว่าเกณฑ์! โปรดเพิ่มจำนวน Mode")
+        st.metric("Scale Factor Y", f"{sf_y:.4f}")
 
-        # คำนวณ Scale Factor Y
-        sf_y = v_target / v_dynamic_y
-        sf_y_final = max(1.0, sf_y)
-        
-        st.metric(label="ตัวคูณปรับแก้ทิศทาง Y (Scale Factor Y)", value=f"{sf_y_final:.4f}")
-        if sf_y > 1.0:
-            st.caption(f"สมการ: $Scale\ Factor = \\frac{{{v_target:,.2f}}}{{{v_dynamic_y:,.2f}}}$")
-        else:
-            st.caption("แรงเฉือนพลศาสตร์มากกว่าเกณฑ์เป้าหมาย ไม่จำเป็นต้องปรับแก้ (ใช้ Scale Factor = 1.0)")
-            
     st.divider()
-    st.markdown("### 📌 สรุปผลการปรับแก้เพื่อนำไปตั้งค่าในซอฟต์แวร์ (ETABS / SAFE / STAAD)")
+
+    # =======================================================================
+    # 🎯 SECTION 2: Story Drift Verification (ระบบตรวจสอบ Drift รายชั้น)
+    # =======================================================================
+    st.subheader("2. การตรวจสอบระยะโยกตัวระหว่างชั้นราย floor (Story Drift Verification)")
     st.markdown(f"""
-    * **1. ทิศทาง X:** นำค่า Scale Factor = **{sf_x_final:.4f}** ไปคูณเข้ากับ Load Case ของ Response Spectrum ทิศทาง X 
-    * **2. ทิศทาง Y:** นำค่า Scale Factor = **{sf_y_final:.4f}** ไปคูณเข้ากับ Load Case ของ Response Spectrum ทิศทาง Y
-    * **3. โหมดรูปร่าง (Modal):** {'ผ่านเกณฑ์จำนวนโหมดแล้ว' if (mass_part_x >= 90 and mass_part_y >= 90) else '**จำเป็นต้องเพิ่มจำนวนโหมด (Number of Modes) ในการวิเคราะห์ให้มากขึ้น เนื่องจากมวลร่วมยังไม่ถึง 90%**'}
+    สูตรคำนวณระยะโยกตัวออกแบบ: $\Delta_{{design}} = \\frac{{C_d \\times \Delta_{{elastic}}}}{{I_e}}$ 
+    | เกณฑ์ขีดจำกัดสูงสุดควบคุม: **{limit_pct:.2f}%** ของความสูงชั้น ($h_{{sx}}$)
     """)
 
+    # สร้างข้อมูลจำลองเริ่มต้นเพื่อให้ผู้ใช้เข้ามาแก้ไขได้ง่าย (Default DataFrame)
+    default_drift_data = pd.DataFrame({
+        "ชื่อชั้น (Story)": ["Roof", "Floor 4", "Floor 3", "Floor 2", "Floor 1"],
+        "ความสูงชั้น h_sx (m)": [3.5, 3.5, 3.5, 3.5, 4.0],
+        "Elastic Drift X (mm)": [6.2, 8.5, 9.1, 7.4, 4.2],
+        "Elastic Drift Y (mm)": [5.8, 7.9, 8.4, 6.9, 3.8]
+    })
 
+    # แสดงตารางแบบ Interactive Data Editor เพื่อให้ผู้ใช้กรอกข้อมูลจาก ETABS ได้ทันที
+    edited_df = st.data_editor(
+        default_drift_data,
+        num_rows="dynamic",
+        use_container_width=True,
+        column_config={
+            "ชื่อชั้น (Story)": st.column_config.TextColumn("ชื่อชั้น", help="กรอกชื่อชั้นจากแบบโครงสร้าง"),
+            "ความสูงชั้น h_sx (m)": st.column_config.NumberColumn("ความสูงชั้น (m)", min_value=0.5, format="%.2f"),
+            "Elastic Drift X (mm)": st.column_config.NumberColumn("Δ Elastic X (mm)", format="%.2f"),
+            "Elastic Drift Y (mm)": st.column_config.NumberColumn("Δ Elastic Y (mm)", format="%.2f"),
+        }
+    )
+
+    # คำนวณผลลัพธ์ของตารางแบบ Real-time
+    if not edited_df.empty:
+        try:
+            h_mm = edited_df["ความสูงชั้น h_sx (m)"] * 1000
+            
+            # ทิศทาง X
+            edited_df["Design Drift X (mm)"] = (edited_df["Elastic Drift X (mm)"] * _Cd) / _Ie
+            edited_df["Drift Ratio X (%)"] = (edited_df["Design Drift X (mm)"] / h_mm) * 100
+            
+            # ทิศทาง Y
+            edited_df["Design Drift Y (mm)"] = (edited_df["Elastic Drift Y (mm)"] * _Cd) / _Ie
+            edited_df["Drift Ratio Y (%)"] = (edited_df["Design Drift Y (mm)"] / h_mm) * 100
+            
+            # ตรวจสอบสถานะเกณฑ์ควบคุม
+            edited_df["ผลตรวจสอบ X"] = edited_df["Drift Ratio X (%)"].apply(lambda x: "🟢 PASS" if x <= limit_pct else "🔴 FAIL")
+            edited_df["ผลตรวจสอบ Y"] = edited_df["Drift Ratio Y (%)"].apply(lambda x: "🟢 PASS" if x <= limit_pct else "🔴 FAIL")
+            
+            st.markdown("**📋 ผลการประเมินระยะโยกตัวควบคุม (Processed Design Drift Results):**")
+            # แสดงผลตารางที่คำนวณแล้วเสร็จ
+            st.dataframe(
+                edited_df[["ชื่อชั้น (Story)", "Drift Ratio X (%)", "ผลตรวจสอบ X", "Drift Ratio Y (%)", "ผลตรวจสอบ Y"]],
+                use_container_width=True,
+                column_config={
+                    "Drift Ratio X (%)": st.column_config.NumberColumn("Drift X (%)", format="%.3f"),
+                    "Drift Ratio Y (%)": st.column_config.NumberColumn("Drift Y (%)", format="%.3f"),
+                }
+            )
+        except Exception as e:
+            st.warning("⚠️ โปรดตรวจสอบการกรอกข้อมูลในตารางให้ครบถ้วนทุกช่อง")
+            
+    st.divider()
+
+    # =======================================================================
+    # 🎯 SECTION 3: P-Delta Effects Screening (การประเมินผลกระทบอันดับสอง)
+    # =======================================================================
+    st.subheader("3. การประเมินผลกระทบอันดับที่สอง (P-Delta Preliminary Screening)")
+    st.markdown("""
+    ดัชนีเสถียรภาพควบคุม: $\\theta = \\frac{{P \\times \Delta_{{elastic}}}}{{V \\times h_{{sx}} \\times C_d}}$ 
+    * หาก $\\theta \le 0.10$: **ไม่ต้องคิดผลของ P-Delta** * หาก $0.10 < \\theta \le \\theta_{{max}}$: **ต้องคูณขยายแรงเพิ่มด้วยตัวคูณ $\\frac{{1}}{{1-\\theta}}$**
+    """)
+    
+    col_p1, col_p2, col_p3 = st.columns(3)
+    with col_p1:
+        p_load = st.number_input("น้ำหนักแนวดิ่งสะสมเหนือชั้นนั้น (P) [ตัน]", min_value=0.0, value=500.0, step=50.0)
+    with col_p2:
+        v_shear = st.number_input("แรงเฉือนในชั้นอาคารควบคุม (V) [ตัน]", min_value=0.1, value=45.0, step=5.0)
+    with col_p3:
+        h_floor = st.number_input("ความสูงของชั้นอาคาร h_sx [เมตร]", min_value=1.0, value=3.5, format="%.2f")
+        
+    elastic_drift_input = st.number_input("ระยะเคลื่อนตัวสัมพัทธ์จากการวิเคราะห์ยืดหยุ่น Δ_elastic [มิลลิเมตร]", min_value=0.0, value=8.0)
+    
+    # คำนวณหาค่า Theta (แปลงหน่วย Δ เป็นเมตรให้ตรงกับความสูง h)
+    drift_m = elastic_drift_input / 1000.0
+    theta = (p_load * drift_m) / (v_shear * h_floor * _Cd)
+    theta_max = min(0.5 / (_Cd * 1.0), 0.25) # สมมติ beta = 1.0 ตามเกณฑ์อนุรักษ์นิยม
+    
+    col_m1, col_m2 = st.columns(2)
+    with col_m1:
+        st.metric("ดัชนีเสถียรภาพที่คำนวณได้ (θ)", f"{theta:.4f}")
+    with col_m2:
+        st.metric("ขีดจำกัดสูงสุดยอมรับได้ (θ_max)", f"{theta_max:.4f}")
+        
+    if theta <= 0.10:
+        st.success(f"🟢 ค่า θ = {theta:.4f} ยู่น้อยกว่าหรือเท่ากับ 0.10: **โครงสร้างมีความปลอดภัยสูง ไม่ต้องพิจารณาผลกระทบจาก P-Delta**")
+    elif theta > 0.10 and theta <= theta_max:
+        amp_factor = 1.0 / (1.0 - theta)
+        st.warning(f"⚠️ ค่า θ = {theta:.4f} อยู่ระหว่าง 0.10 ถึง {theta_max:.4f}: **จำเป็นต้องนำผลกระทบ P-Delta มาพิจารณาออกแบบ โดยให้คูณขยายแรงและโมเมนต์เพิ่มขึ้นอีก {amp_factor:.3f} เท่า**")
+    else:
+        st.error("🔴 โครงสร้างไม่มีเสถียรภาพเพียงพอ (θ เกินค่า θ_max): **วิศวกรต้องทำการปรับขนาดขนาดเสาหรือระบบต้านทานแรงด้านข้างเพื่อเพิ่มความแข็งแรง (Stiffness) ของอาคารทันที**")
+
+    st.divider()
+
+    # =======================================================================
+    # 🎯 SECTION 4: Torsional Amplification (การบิดตัวของอาคาร)
+    # =======================================================================
+    st.subheader("4. ตัวคูณขยายการบิดตัวเนื่องจากความไม่สมมาตร (Torsional Amplification, A_x)")
+    st.markdown("สูตรคำนวณ: $A_x = \\left( \\frac{\\delta_{max}}{1.2 \\delta_{avg}} \\right)^2$ | เกณฑ์ควบคุม: $1.0 \\le A_x \\le 3.0$")
+    
+    col_t_max, col_t_avg = st.columns(2)
+    with col_t_max:
+        delta_max = st.number_input("ระยะเคลื่อนตัวสูงสุดที่ขอบอาคาร (δ_max) [mm]", min_value=0.1, value=12.0)
+    with col_t_avg:
+        delta_avg = st.number_input("ระยะเคลื่อนตัวเฉลี่ยของชั้นอาคาร (δ_avg) [mm]", min_value=0.1, value=9.5)
+        
+    if delta_max >= delta_avg:
+        ax_calc = (delta_max / (1.2 * delta_avg)) ** 2
+        ax_final = min(max(1.0, ax_calc), 3.0)
+        
+        st.metric("ตัวคูณขยายการบิดตัว (A_x)", f"{ax_final:.4f}")
+        if ax_final == 1.0:
+            st.info("💡 อาคารไม่มีปัญหาการบิดตัวรุนแรง (ความไม่สม่ำเสมอประเภทบิดตัวไม่เกินเกณฑ์ควบคุม)")
+        elif ax_final > 1.0 and ax_final < 3.0:
+            st.warning(f"⚠️ มีผลกระทบจากการบิดตัว: ต้องเพิ่มค่าความเยื้องศูนย์กลางโดยตั้งใจ (Accidental Eccentricity) ขึ้นอีก {ax_final:.3f} เท่าใน Load Case ของโปรแกรมวิเคราะห์โครงสร้าง")
+        else:
+            st.error("🔴 อาคารมีการบิดตัวรุนแรงเกินขีดจำกัดสูงสุด (A_x ถูกจำกัดที่ 3.0): แนะนำให้วิศวกรปรับย้ายตำแหน่งพิกัดของกำแพงรับแรงเฉือน (Shear Wall) เพื่อลดระยะเยื้องศูนย์หลัก (Center of Mass vs Center of Rigidity)")
+    else:
+        st.error("❌ ข้อผิดพลาด: ค่า δ_max ไม่สามารถน้อยกว่าค่า δ_avg ได้ โปรดตรวจสอบตัวเลขอีกครั้ง")
 
 
