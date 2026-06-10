@@ -439,24 +439,16 @@ with tab4:
     st.header("🏢 วิธีแรงสถิตเทียบเท่า (Equivalent Static Procedure)")
     st.markdown("ระบบคำนวณกระจายแรงแผ่นดินไหว และตรวจสอบเสถียรภาพอาคารตามมาตรฐาน **มยผ. 1301/1302**")
 
-    # 🛡️ STEP 0: PRE-INITIALIZATION (ท่าไม้ตายดักจับป้องกัน NameError 100%)
-    # ประกาศตัวแปรตั้งต้นไว้ก่อน เพื่อให้สคริปต์มีค่าอ่านตลอดเวลา ไม่มีวันเกิดสถานะล่องหน
-    if 'SDS' not in locals() and 'SDS' not in globals(): SDS = 0.5
-    if 'SD1' not in locals() and 'SD1' not in globals(): SD1 = 0.2
-    if 'Ta' not in locals() and 'Ta' not in globals(): Ta = 0.3
-    if 'importance_factor' not in locals() and 'importance_factor' not in globals(): importance_factor = 1.0
-
-    total_W = 0.0
-    total_V = 0.0
-    k_exp = 1.0
-    sum_w_hx_k = 1.0
-    floor_names = ["ชั้น 4 (ดาดฟ้า)", "ชั้น 3", "ชั้น 2", "ชั้น 1"]
-    hx = np.array([14.0, 10.5, 7.0, 3.5])
-    wx = np.array([150.0, 200.0, 200.0, 220.0])
-    cvx = np.array([0.0, 0.0, 0.0, 0.0])
-    Fx = np.array([0.0, 0.0, 0.0, 0.0])
-    Vx = np.array([0.0, 0.0, 0.0, 0.0])
-    Mx = np.array([0.0, 0.0, 0.0, 0.0])
+    # ==============================================================================
+    # 🛡️ THE BACKBONE: ระบบจัดเก็บข้อมูลส่วนกลาง (Session State) เพื่อป้องกันตัวแปรล่องหน
+    # ==============================================================================
+    if "story_df" not in st.session_state:
+        st.session_state.story_df = pd.DataFrame([
+            {"ชื่อชั้น (Floor)": "ชั้น 4 (ดาดฟ้า)", "ความสูงสะสม hx (ม.)": 14.0, "น้ำหนักรวม wx (ตัน)": 150.0},
+            {"ชื่อชั้น (Floor)": "ชั้น 3", "ความสูงสะสม hx (ม.)": 10.5, "น้ำหนักรวม wx (ตัน)": 200.0},
+            {"ชื่อชั้น (Floor)": "ชั้น 2", "ความสูงสะสม hx (ม.)": 7.0, "น้ำหนักรวม wx (ตัน)": 200.0},
+            {"ชื่อชั้น (Floor)": "ชั้น 1", "ความสูงสะสม hx (ม.)": 3.5, "น้ำหนักรวม wx (ตัน)": 220.0},
+        ])
 
     # --- สเต็ป 1: พารามิเตอร์ระบบโครงสร้าง ---
     st.subheader("⚡ สเต็ปที่ 1: กำหนดสัมประสิทธิ์โครงสร้าง")
@@ -473,11 +465,10 @@ with tab4:
     R = structural_systems[selected_system]["R"]
     Omega0 = structural_systems[selected_system]["Omega"]
     Cd = structural_systems[selected_system]["Cd"]
-    Ie = importance_factor 
-
-    # คำนวณสัมประสิทธิ์แรงเฉือนที่ฐาน (Cs) ตามสมการมาตรฐาน
-    Cs_compute = SDS / (R / Ie)
-    Cs_max = SD1 / (Ta * (R / Ie)) if Ta > 0 else Cs_compute
+    
+    # คำนวณสัมประสิทธิ์แรงเฉือนที่ฐาน (Cs) ตามสมการมาตรฐาน (ใช้ตัวแปรจากหน้าหลัก)
+    Cs_compute = SDS / (R / importance_factor) if R > 0 else 0
+    Cs_max = SD1 / (Ta * (R / importance_factor)) if (Ta > 0 and R > 0) else Cs_compute
     Cs_min = 0.01 
     Cs_governing = max(Cs_min, min(Cs_compute, Cs_max))
 
@@ -496,47 +487,58 @@ with tab4:
     with sub_tab1:
         st.markdown("##### 📝 กรอกข้อมูลมิติอาคาร (เรียงจากชั้นบนสุดลงล่างสุด)")
         
-        default_stories = pd.DataFrame([
-            {"ชื่อชั้น (Floor)": "ชั้น 4 (ดาดฟ้า)", "ความสูงสะสม hx (ม.)": 14.0, "น้ำหนักรวม wx (ตัน)": 150.0},
-            {"ชื่อชั้น (Floor)": "ชั้น 3", "ความสูงสะสม hx (ม.)": 10.5, "น้ำหนักรวม wx (ตัน)": 200.0},
-            {"ชื่อชั้น (Floor)": "ชั้น 2", "ความสูงสะสม hx (ม.)": 7.0, "น้ำหนักรวม wx (ตัน)": 200.0},
-            {"ชื่อชั้น (Floor)": "ชั้น 1", "ความสูงสะสม hx (ม.)": 3.5, "น้ำหนักรวม wx (ตัน)": 220.0},
-        ])
-
+        # แสดงตารางรับข้อมูล และอัปเดต State อัตโนมัติเมื่อมีการแก้ไข
         edited_df = st.data_editor(
-            default_stories, num_rows="dynamic", use_container_width=True,
+            st.session_state.story_df, 
+            num_rows="dynamic", 
+            use_container_width=True,
             column_config={
-                "ความสูงสะสม hx (ม.)": st.column_config.NumberColumn(min_value=0.0, format="%.2f", required=True),
-                "น้ำหนักรวม wx (ตัน)": st.column_config.NumberColumn(min_value=0.0, format="%.2f", required=True),
-            }, key="force_editor"
+                "ชื่อชั้น (Floor)": st.column_config.TextColumn("ชื่อชั้น", required=True),
+                "ความสูงสะสม hx (ม.)": st.column_config.NumberColumn("ความสูง hx", min_value=0.0, format="%.2f", required=True),
+                "น้ำหนักรวม wx (ตัน)": st.column_config.NumberColumn("น้ำหนัก wx", min_value=0.0, format="%.2f", required=True),
+            }, 
+            key="force_editor"
         )
+        st.session_state.story_df = edited_df
 
-        if edited_df is not None and not edited_df.empty:
-            cleaned_df = edited_df.dropna(subset=[edited_df.columns[1], edited_df.columns[2]])
-            if not cleaned_df.empty:
-                hx = cleaned_df.iloc[:, 1].astype(float).values
-                wx = cleaned_df.iloc[:, 2].astype(float).values
-                floor_names = cleaned_df.iloc[:, 0].astype(str).values
-                
-                # ประมวลผลฟิสิกส์การคำนวณจริง (เขียนทับตัวแปรตั้งต้น)
-                total_W = np.sum(wx)
-                total_V = Cs_governing * total_W
-                k_exp = 1.0 if Ta <= 0.5 else (2.0 if Ta >= 2.5 else 1.0 + (Ta - 0.5) / 2.0)
-                
-                w_hx_k = wx * (hx ** k_exp)
-                sum_w_hx_k = np.sum(w_hx_k)
-                cvx = w_hx_k / sum_w_hx_k if sum_w_hx_k > 0 else np.zeros_like(w_hx_k)
-                Fx = cvx * total_V
-                Vx = np.cumsum(Fx)
-                
-                Mx = np.zeros_like(Fx)
-                for i in range(len(hx)):
-                    moment = 0
-                    for j in range(i + 1):
-                        moment += Fx[j] * max(0, hx[j] - hx[i])
-                    Mx[i] = moment
+        # --- การประมวลผลข้อมูล (Data Processing) ---
+        clean_df = edited_df.dropna(subset=["ความสูงสะสม hx (ม.)", "น้ำหนักรวม wx (ตัน)"]).copy()
+        
+        # สร้าง Fallback Variables ป้องกันกรณีผู้ใช้ลบแถวทิ้งหมด (เพื่อไม่ให้เกิด NameError)
+        if clean_df.empty:
+            floor_names = np.array(["รอข้อมูล"])
+            hx = np.array([0.0])
+            wx = np.array([0.0])
+        else:
+            floor_names = clean_df["ชื่อชั้น (Floor)"].astype(str).values
+            hx = clean_df["ความสูงสะสม hx (ม.)"].astype(float).values
+            wx = clean_df["น้ำหนักรวม wx (ตัน)"].astype(float).values
 
-        # แยกชุดข้อมูลสร้าง DataFrame ออกมาด้านนอก เพื่อความปลอดภัยในการดึงตัวแปรไปใช้
+        # คำนวณฟิสิกส์แผ่นดินไหว
+        total_W = np.sum(wx)
+        total_V = Cs_governing * total_W
+        k_exp = 1.0 if Ta <= 0.5 else (2.0 if Ta >= 2.5 else 1.0 + (Ta - 0.5) / 2.0)
+        
+        w_hx_k = wx * (hx ** k_exp)
+        sum_w_hx_k = np.sum(w_hx_k) if np.sum(w_hx_k) > 0 else 1.0 # ป้องกันหารด้วย 0
+        cvx = w_hx_k / sum_w_hx_k
+        Fx = cvx * total_V
+        Vx = np.cumsum(Fx)
+        
+        Mx = np.zeros_like(Fx)
+        for i in range(len(hx)):
+            moment = 0
+            for j in range(i + 1):
+                moment += Fx[j] * max(0, hx[j] - hx[i])
+            Mx[i] = moment
+
+        # บันทึกตัวแปรที่คำนวณเสร็จแล้วลง State เพื่อส่งไป Tab 2 อย่างปลอดภัย
+        st.session_state.computed_data = {
+            "floor_names": floor_names, "hx": hx, "wx": wx, "cvx": cvx, 
+            "Fx": Fx, "Vx": Vx, "Mx": Mx
+        }
+
+        # --- แสดงผลลัพธ์ตารางและกราฟ ---
         res_force = pd.DataFrame({
             "ชื่อชั้น (Floor)": floor_names,
             "ความสูงสะสม hx (ม.)": hx,
@@ -554,46 +556,33 @@ with tab4:
             "แรงเฉือนสะสม Vx (ตัน)": "{:,.2f}", "โมเมนต์พลิกคว่ำ Mx (ตัน-ม.)": "{:,.2f}"
         }), use_container_width=True)
 
-# ==============================================================================
-        # 🛡️ THE ULTIMATE SHIELD: ใช้ Try-Except ครอบทั้งบล็อก (ป้องกันแครชทุกกรณี 100%)
-        # ==============================================================================
-        try:
-            # 📑 รายการคำนวณโปร่งใส 
-            with st.expander("📄 เปิดดูบันทึกข้อความสรุปสูตรคำนวณ (Calculation Note Summary)", expanded=False):
-                st.markdown("### 🖋️ รายการสรุปสูตรคำนวณเชิงวิศวกรรม")
-                # เรียกใช้ตัวแปรตรงๆ ได้เลย ถ้าไม่มีค่า มันจะกระโดดไปที่ except ทันทีโดยไม่แครช
-                st.latex(r"V_{\text{base}} = C_s \times W = " + f"{Cs_governing:.4f} \times {total_W:,.2f} = {total_V:,.2f} \\text{ ตัน}")
-                st.latex(r"k_{\text{exponent}} = " + f"{k_exp:.3f} \\quad (\\text{อ้างอิงจากคาบธรรมชาติอาคาร } T_a = {Ta:.3f} \\text{ วินาที})")
-                st.markdown("---")
-                
-                for idx, name in enumerate(floor_names):
-                    st.markdown(f"**📍 การกระจายแรงสู่ระดับ {name}:**")
-                    st.latex(f"C_{{vx}} = \\frac{{{wx[idx]:,.1f} \\times {hx[idx]:.2f}^{{{k_exp:.2f}}}}}{{{sum_w_hx_k:,.1f}}} = {cvx[idx]:.4f}")
-                    st.latex(f"F_x = {cvx[idx]:.4f} \\times {total_V:,.2f} = {Fx[idx]:,.2f} \\text{ ตัน}")
+        with st.expander("📄 เปิดดูบันทึกข้อความสรุปสูตรคำนวณ (Calculation Note Summary)", expanded=False):
+            st.markdown("### 🖋️ รายการสรุปสูตรคำนวณเชิงวิศวกรรม")
+            st.latex(r"V_{\text{base}} = C_s \times W = " + f"{Cs_governing:.4f} \times {total_W:,.2f} = {total_V:,.2f} \\text{ ตัน}")
+            st.latex(r"k_{\text{exponent}} = " + f"{k_exp:.3f} \\quad (\\text{อ้างอิงจากคาบธรรมชาติอาคาร } T_a = {Ta:.3f} \\text{ วินาที})")
+            st.markdown("---")
+            for idx, name in enumerate(floor_names):
+                st.markdown(f"**📍 การกระจายแรงสู่ระดับ {name}:**")
+                st.latex(f"C_{{vx}} = \\frac{{{wx[idx]:,.1f} \\times {hx[idx]:.2f}^{{{k_exp:.2f}}}}}{{{sum_w_hx_k:,.1f}}} = {cvx[idx]:.4f}")
+                st.latex(f"F_x = {cvx[idx]:.4f} \\times {total_V:,.2f} = {Fx[idx]:,.2f} \\text{ ตัน}")
 
-            # 📊 พล็อตกราฟ
-            from plotly.subplots import make_subplots
-            import plotly.graph_objects as go
-            
-            fig_force = make_subplots(rows=1, cols=3, shared_yaxes=True, horizontal_spacing=0.06, subplot_titles=("แรงผลักแผ่นดินไหว (Fx)", "แรงเฉือนสะสม (Vx)", "โมเมนต์พลิกคว่ำ (Mx)"))
-            fig_force.add_trace(go.Bar(y=floor_names, x=Fx, orientation='h', marker_color='#3b82f6'), row=1, col=1)
-            fig_force.add_trace(go.Bar(y=floor_names, x=Vx, orientation='h', marker_color='#10b981'), row=1, col=2)
-            fig_force.add_trace(go.Bar(y=floor_names, x=Mx, orientation='h', marker_color='#f59e0b'), row=1, col=3)
-            fig_force.update_layout(height=400, showlegend=False, template="plotly_white", margin=dict(l=10, r=10, t=40, b=20))
-            fig_force.update_yaxes(autorange="reversed", title_text="ชั้นอาคาร", row=1, col=1)
-            st.plotly_chart(fig_force, use_container_width=True)
-
-        except Exception as e:
-            # 💡 ถ้าจังหวะ Rerun โค้ดสะดุด หรือตัวแปรหาไม่เจอ จะโชว์กล่องข้อความนี้แทนจอแดง
-            st.info("⏳ ระบบกำลังประมวลผล หรือรอข้อมูลตัวแปรเริ่มต้นจากการอัปเดตตาราง...")
+        fig_force = go.Figure()
+        from plotly.subplots import make_subplots
+        fig_force = make_subplots(rows=1, cols=3, shared_yaxes=True, horizontal_spacing=0.06, subplot_titles=("แรงผลักแผ่นดินไหว (Fx)", "แรงเฉือนสะสม (Vx)", "โมเมนต์พลิกคว่ำ (Mx)"))
+        fig_force.add_trace(go.Bar(y=floor_names, x=Fx, orientation='h', marker_color='#3b82f6'), row=1, col=1)
+        fig_force.add_trace(go.Bar(y=floor_names, x=Vx, orientation='h', marker_color='#10b981'), row=1, col=2)
+        fig_force.add_trace(go.Bar(y=floor_names, x=Mx, orientation='h', marker_color='#f59e0b'), row=1, col=3)
+        fig_force.update_layout(height=400, showlegend=False, template="plotly_white", margin=dict(l=10, r=10, t=40, b=20))
+        fig_force.update_yaxes(autorange="reversed", title_text="ชั้นอาคาร", row=1, col=1)
+        st.plotly_chart(fig_force, use_container_width=True)
 
     # ================= SUB TAB 2 =================
     with sub_tab2:
         st.markdown("##### 📏 ตรวจสอบระยะเคลื่อนตัวขยับพังทลาย (Story Drift Safety Check)")
         
-        if Ie >= 1.5:
+        if importance_factor >= 1.5:
             drift_limit_factor = 0.010; cat_text = "อาคารความสำคัญสูงมาก (Limit = 1.0%)"
-        elif Ie >= 1.25:
+        elif importance_factor >= 1.25:
             drift_limit_factor = 0.015; cat_text = "อาคารความสำคัญสูง (Limit = 1.5%)"
         else:
             drift_limit_factor = 0.020; cat_text = "อาคารทั่วไป (Limit = 2.0%)"
@@ -606,7 +595,6 @@ with tab4:
                 st.latex(r"\delta_x = \frac{C_d \times \delta_e}{I_e}")
                 st.latex(r"\text{Drift Ratio} = \frac{\delta_{top} - \delta_{bot}}{h_{net}} \le \text{Limit}")
             with col_pic2:
-                import plotly.graph_objects as go
                 fig_model = go.Figure()
                 x_orig, y_orig = [0, 3], [0, 3, 6, 9] 
                 dx = [0, 0.6, 1.5, 2.2] 
@@ -625,33 +613,42 @@ with tab4:
                 fig_model.update_layout(xaxis=dict(visible=False, range=[-2, 6]), yaxis=dict(visible=False, range=[-1, 10]), plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', margin=dict(l=0, r=0, t=0, b=0), height=200, showlegend=False)
                 st.plotly_chart(fig_model, use_container_width=True, config={'displayModeBar': False})
 
-        drift_df = pd.DataFrame({
-            "ชื่อชั้น": floor_names,
-            "ความสูงสะสม hx (ม.)": hx,
-            "ระยะโยกพืดหยุ่นจากโปรแกรม δe (ซม.)": np.linspace(2.0, 0.4, len(hx)) 
-        })
+        # ดึงข้อมูลตั้งต้นมาจากตู้เซฟอย่างปลอดภัย (ถึงชั้นจะไม่เท่าเดิมก็ไม่มีปัญหา)
+        c_data = st.session_state.computed_data
+        drift_key = f"drift_state_{len(c_data['floor_names'])}"
         
+        # รีเซ็ตตารางกรอก Drift หากผู้ใช้เพิ่ม/ลดชั้นใน Tab 1 เพื่อไม่ให้ Index พัง
+        if drift_key not in st.session_state:
+            st.session_state[drift_key] = pd.DataFrame({
+                "ชื่อชั้น": c_data["floor_names"],
+                "ความสูงสะสม hx (ม.)": c_data["hx"],
+                "ระยะโยกพืดหยุ่นจากโปรแกรม δe (ซม.)": np.linspace(2.0, 0.4, len(c_data["floor_names"])) 
+            })
+
         edited_drift = st.data_editor(
-            drift_df, num_rows="fixed", use_container_width=True,
+            st.session_state[drift_key], 
+            num_rows="fixed", 
+            use_container_width=True,
             column_config={
                 "ชื่อชั้น": st.column_config.TextColumn(disabled=True),
                 "ความสูงสะสม hx (ม.)": st.column_config.NumberColumn(disabled=True, format="%.2f"),
                 "ระยะโยกพืดหยุ่นจากโปรแกรม δe (ซม.)": st.column_config.NumberColumn(min_value=0.0, format="%.3f")
-            }, key="drift_editor"
+            }, key=f"editor_{drift_key}"
         )
+        st.session_state[drift_key] = edited_drift
         
         delta_e = edited_drift["ระยะโยกพืดหยุ่นจากโปรแกรม δe (ซม.)"].values
-        delta_x = (Cd * delta_e) / Ie 
+        delta_x = (Cd * delta_e) / importance_factor 
         
-        story_h = np.zeros_like(hx)
-        drift_ratio = np.zeros_like(hx)
+        story_h = np.zeros_like(c_data["hx"])
+        drift_ratio = np.zeros_like(c_data["hx"])
         status = []
         
-        for i in range(len(hx)):
-            h_net = hx[i] if i == len(hx)-1 else hx[i] - hx[i+1]
+        for i in range(len(c_data["hx"])):
+            h_net = c_data["hx"][i] if i == len(c_data["hx"])-1 else c_data["hx"][i] - c_data["hx"][i+1]
             story_h[i] = h_net
-            delta_diff = delta_x[i] if i == len(hx)-1 else delta_x[i] - delta_x[i+1]
-            drift_ratio[i] = delta_diff / (h_net * 100) 
+            delta_diff = delta_x[i] if i == len(c_data["hx"])-1 else delta_x[i] - delta_x[i+1]
+            drift_ratio[i] = delta_diff / (h_net * 100) if h_net > 0 else 0
             status.append("✅ PASS" if drift_ratio[i] <= drift_limit_factor else "❌ FAIL")
                 
         res_drift = edited_drift.copy()
