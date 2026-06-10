@@ -567,68 +567,69 @@ with tab5:
         overall_drift = "รอผลการคำนวณ"
         drift_color = "#475569" # เทากลาง
 
-    # 2. สร้าง Graphviz DOT โทนสี Corporate Engineering (Slate / Navy / Steel)
+    # 2. สร้าง Graphviz DOT โทนสี Premium Corporate (Modern UI Style)
     pro_flowchart_dot = f"""
     digraph ExecutiveSummary {{
         rankdir=TB;
-        nodesep=0.6;
-        ranksep=0.4;
+        nodesep=0.8;
+        ranksep=0.6;
         bgcolor="transparent";
         splines=ortho;
+        pad=0.5;
 
-        node [shape=none, fontname="Tahoma, Arial", margin=0];
-        edge [color="#64748B", penwidth=1.5, arrowsize=0.8]; // สีเส้นเชื่อมเป็นเทาเหล็ก
+        node [shape=plaintext, fontname="Helvetica, Arial, Tahoma, sans-serif", fontsize=12];
+        edge [color="#94A3B8", penwidth=2, arrowsize=0.7]; 
 
         // 🎯 CARD 1: ข้อมูลพื้นที่และภัยแผ่นดินไหว
         Card_Site [label=<
-            <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="6" COLOR="#94A3B8">
-                <TR><TD BGCOLOR="#1E293B" COLSPAN="2"><FONT COLOR="#F8FAFC"><B>1. ข้อมูลสถานที่และภัยแผ่นดินไหว (Site &amp; Hazard)</B></FONT></TD></TR>
-                <TR><TD ALIGN="LEFT" BGCOLOR="#F1F5F9"><FONT COLOR="#334155">ชั้นดิน (Site Class):</FONT></TD><TD BGCOLOR="#FFFFFF"><B>{site_class}</B></TD></TR>
-                <TR><TD ALIGN="LEFT" BGCOLOR="#F1F5F9"><FONT COLOR="#334155">S<SUB>DS</SUB> / S<SUB>D1</SUB> (g):</FONT></TD><TD BGCOLOR="#FFFFFF"><B>{_SDS} / {_SD1}</B></TD></TR>
-                <TR><TD ALIGN="LEFT" BGCOLOR="#F1F5F9"><FONT COLOR="#334155">ประเภทการออกแบบ (SDC):</FONT></TD><TD BGCOLOR="#FFFFFF"><FONT COLOR="#B45309"><B>ประเภท {_sdc}</B></FONT></TD></TR>
+            <TABLE BORDER="1" CELLBORDER="1" CELLSPACING="0" CELLPADDING="10" COLOR="#CBD5E1" STYLE="ROUNDED">
+                <TR><TD BGCOLOR="#0F172A" COLSPAN="2"><FONT COLOR="#FFFFFF" POINT-SIZE="13"><B>📍 1. ข้อมูลสถานที่และภัยแผ่นดินไหว</B></FONT></TD></TR>
+                <TR><TD ALIGN="LEFT" BGCOLOR="#F8FAFC"><FONT COLOR="#475569">ชั้นดิน (Site Class):</FONT></TD><TD BGCOLOR="#FFFFFF"><FONT COLOR="#0F172A"><B>{site_class}</B></FONT></TD></TR>
+                <TR><TD ALIGN="LEFT" BGCOLOR="#F8FAFC"><FONT COLOR="#475569">S<SUB>DS</SUB> / S<SUB>D1</SUB> (g):</FONT></TD><TD BGCOLOR="#FFFFFF"><FONT COLOR="#0F172A"><B>{_SDS} / {_SD1}</B></FONT></TD></TR>
+                <TR><TD ALIGN="LEFT" BGCOLOR="#F8FAFC"><FONT COLOR="#475569">ประเภทการออกแบบ (SDC):</FONT></TD><TD BGCOLOR="#FFFBEB"><FONT COLOR="#D97706"><B>ประเภท {_sdc}</B></FONT></TD></TR>
             </TABLE>
         >];
 
         // 🎯 CARD 2: ระบบโครงสร้างอาคาร
         Card_System [label=<
-            <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="6" COLOR="#94A3B8">
-                <TR><TD BGCOLOR="#1E293B" COLSPAN="4"><FONT COLOR="#F8FAFC"><B>2. พารามิเตอร์ระบบโครงสร้าง (Structural System)</B></FONT></TD></TR>
+            <TABLE BORDER="1" CELLBORDER="1" CELLSPACING="0" CELLPADDING="10" COLOR="#CBD5E1" STYLE="ROUNDED">
+                <TR><TD BGCOLOR="#0F172A" COLSPAN="4"><FONT COLOR="#FFFFFF" POINT-SIZE="13"><B>🏢 2. พารามิเตอร์ระบบโครงสร้าง</B></FONT></TD></TR>
                 <TR>
-                    <TD ALIGN="LEFT" BGCOLOR="#F1F5F9"><FONT COLOR="#334155">ตัวคูณสำคัญ (Ie):</FONT></TD><TD BGCOLOR="#FFFFFF"><B>{_Ie}</B></TD>
-                    <TD ALIGN="LEFT" BGCOLOR="#F1F5F9"><FONT COLOR="#334155">ลดแรงออกแบบ (R):</FONT></TD><TD BGCOLOR="#FFFFFF"><B>{_R}</B></TD>
+                    <TD ALIGN="LEFT" BGCOLOR="#F8FAFC"><FONT COLOR="#475569">ตัวคูณสำคัญ (Ie):</FONT></TD><TD BGCOLOR="#FFFFFF"><FONT COLOR="#0F172A"><B>{_Ie}</B></FONT></TD>
+                    <TD ALIGN="LEFT" BGCOLOR="#F8FAFC"><FONT COLOR="#475569">ลดแรงออกแบบ (R):</FONT></TD><TD BGCOLOR="#FFFFFF"><FONT COLOR="#0F172A"><B>{_R}</B></FONT></TD>
                 </TR>
                 <TR>
-                    <TD ALIGN="LEFT" BGCOLOR="#F1F5F9"><FONT COLOR="#334155">คาบเวลาอาคาร (Ta):</FONT></TD><TD BGCOLOR="#FFFFFF"><B>{_Ta} s.</B></TD>
-                    <TD ALIGN="LEFT" BGCOLOR="#F1F5F9"><FONT COLOR="#334155">ขยายระยะโยก (Cd):</FONT></TD><TD BGCOLOR="#FFFFFF"><B>{_Cd}</B></TD>
+                    <TD ALIGN="LEFT" BGCOLOR="#F8FAFC"><FONT COLOR="#475569">คาบเวลาอาคาร (Ta):</FONT></TD><TD BGCOLOR="#FFFFFF"><FONT COLOR="#0F172A"><B>{_Ta} s.</B></FONT></TD>
+                    <TD ALIGN="LEFT" BGCOLOR="#F8FAFC"><FONT COLOR="#475569">ขยายระยะโยก (Cd):</FONT></TD><TD BGCOLOR="#FFFFFF"><FONT COLOR="#0F172A"><B>{_Cd}</B></FONT></TD>
                 </TR>
             </TABLE>
         >];
 
         // 🎯 CARD 3: แรงเฉือนที่ฐาน
         Card_BaseShear [label=<
-            <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="6" COLOR="#94A3B8">
-                <TR><TD BGCOLOR="#1E293B" COLSPAN="2"><FONT COLOR="#F8FAFC"><B>3. แรงเฉือนที่ฐานอาคาร (Design Base Shear)</B></FONT></TD></TR>
-                <TR><TD ALIGN="LEFT" BGCOLOR="#F1F5F9"><FONT COLOR="#334155">สัมประสิทธิ์การตอบสนอง (Cs):</FONT></TD><TD BGCOLOR="#FFFFFF"><B>{_Cs}</B></TD></TR>
-                <TR><TD ALIGN="LEFT" BGCOLOR="#F1F5F9"><FONT COLOR="#334155">น้ำหนักประสิทธิผล (W):</FONT></TD><TD BGCOLOR="#FFFFFF"><B>{_W} ตัน</B></TD></TR>
-                <TR><TD ALIGN="LEFT" BGCOLOR="#F1F5F9"><FONT COLOR="#334155">แรงเฉือนออกแบบ (V):</FONT></TD><TD BGCOLOR="#FFFFFF"><FONT COLOR="#991B1B"><B>{_V} ตัน</B></FONT></TD></TR>
+            <TABLE BORDER="1" CELLBORDER="1" CELLSPACING="0" CELLPADDING="10" COLOR="#CBD5E1" STYLE="ROUNDED">
+                <TR><TD BGCOLOR="#0F172A" COLSPAN="2"><FONT COLOR="#FFFFFF" POINT-SIZE="13"><B>⚖️ 3. แรงเฉือนที่ฐานอาคาร</B></FONT></TD></TR>
+                <TR><TD ALIGN="LEFT" BGCOLOR="#F8FAFC"><FONT COLOR="#475569">สัมประสิทธิ์การตอบสนอง (Cs):</FONT></TD><TD BGCOLOR="#FFFFFF"><FONT COLOR="#0F172A"><B>{_Cs}</B></FONT></TD></TR>
+                <TR><TD ALIGN="LEFT" BGCOLOR="#F8FAFC"><FONT COLOR="#475569">น้ำหนักประสิทธิผล (W):</FONT></TD><TD BGCOLOR="#FFFFFF"><FONT COLOR="#0F172A"><B>{_W} ตัน</B></FONT></TD></TR>
+                <TR><TD ALIGN="LEFT" BGCOLOR="#F8FAFC"><FONT COLOR="#475569">แรงเฉือนออกแบบ (V):</FONT></TD><TD BGCOLOR="#FEF2F2"><FONT COLOR="#B91C1C"><B>{_V} ตัน</B></FONT></TD></TR>
             </TABLE>
         >];
 
         // 🎯 CARD 4: การกระจายแรง
         Card_Dist [label=<
-            <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="6" COLOR="#94A3B8">
-                <TR><TD BGCOLOR="#1E293B" COLSPAN="2"><FONT COLOR="#F8FAFC"><B>4. การกระจายแรงแนวดิ่ง</B></FONT></TD></TR>
-                <TR><TD ALIGN="LEFT" BGCOLOR="#F1F5F9"><FONT COLOR="#334155">เลขชี้กำลัง (k):</FONT></TD><TD BGCOLOR="#FFFFFF"><B>{_k}</B></TD></TR>
-                <TR><TD ALIGN="LEFT" BGCOLOR="#F1F5F9"><FONT COLOR="#334155">สมการควบคุม:</FONT></TD><TD BGCOLOR="#FFFFFF">F<SUB>x</SUB> = C<SUB>vx</SUB> × V</TD></TR>
+            <TABLE BORDER="1" CELLBORDER="1" CELLSPACING="0" CELLPADDING="10" COLOR="#CBD5E1" STYLE="ROUNDED">
+                <TR><TD BGCOLOR="#0F172A" COLSPAN="2"><FONT COLOR="#FFFFFF" POINT-SIZE="13"><B>📉 4. การกระจายแรงแนวดิ่ง</B></FONT></TD></TR>
+                <TR><TD ALIGN="LEFT" BGCOLOR="#F8FAFC"><FONT COLOR="#475569">เลขชี้กำลัง (k):</FONT></TD><TD BGCOLOR="#FFFFFF"><FONT COLOR="#0F172A"><B>{_k}</B></FONT></TD></TR>
+                <TR><TD ALIGN="LEFT" BGCOLOR="#F8FAFC"><FONT COLOR="#475569">สมการควบคุม:</FONT></TD><TD BGCOLOR="#FFFFFF"><FONT COLOR="#0F172A">F<SUB>x</SUB> = C<SUB>vx</SUB> × V</FONT></TD></TR>
             </TABLE>
         >];
 
         // 🎯 CARD 5: การตรวจสอบเสถียรภาพ
         Card_Drift [label=<
-            <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="6" COLOR="#94A3B8">
-                <TR><TD BGCOLOR="#1E293B" COLSPAN="2"><FONT COLOR="#F8FAFC"><B>5. การประเมินระยะโยกตัว (Drift Check)</B></FONT></TD></TR>
-                <TR><TD ALIGN="LEFT" BGCOLOR="#F1F5F9"><FONT COLOR="#334155">เกณฑ์ขีดจำกัด (Limit):</FONT></TD><TD BGCOLOR="#FFFFFF"><B>{limit_pct:.1f}%</B></TD></TR>
-                <TR><TD ALIGN="LEFT" BGCOLOR="#F1F5F9"><FONT COLOR="#334155">สถานะความปลอดภัย:</FONT></TD><TD BGCOLOR="{drift_color}"><FONT COLOR="white"><B>{overall_drift}</B></FONT></TD></TR>
+            <TABLE BORDER="1" CELLBORDER="1" CELLSPACING="0" CELLPADDING="10" COLOR="#CBD5E1" STYLE="ROUNDED">
+                <TR><TD BGCOLOR="#0F172A" COLSPAN="2"><FONT COLOR="#FFFFFF" POINT-SIZE="13"><B>🛡️ 5. การประเมินระยะโยกตัว</B></FONT></TD></TR>
+                <TR><TD ALIGN="LEFT" BGCOLOR="#F8FAFC"><FONT COLOR="#475569">เกณฑ์ขีดจำกัด (Limit):</FONT></TD><TD BGCOLOR="#FFFFFF"><FONT COLOR="#0F172A"><B>{limit_pct:.1f}%</B></FONT></TD></TR>
+                <TR><TD ALIGN="LEFT" BGCOLOR="#F8FAFC"><FONT COLOR="#475569">สถานะความปลอดภัย:</FONT></TD><TD BGCOLOR="{drift_color}"><FONT COLOR="#FFFFFF"><B>{overall_drift}</B></FONT></TD></TR>
             </TABLE>
         >];
 
@@ -638,7 +639,7 @@ with tab5:
         Card_BaseShear -> Card_Dist;
         Card_BaseShear -> Card_Drift;
         
-        // จัดให้ Dist กับ Drift อยู่ระดับเดียวกัน (Rank) เพื่อความสวยงาม
+        // จัดให้ Dist กับ Drift อยู่ระดับเดียวกัน (Rank)
         {{ rank=same; Card_Dist; Card_Drift; }}
     }}
     """
