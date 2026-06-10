@@ -578,7 +578,7 @@ with tab4:
                 ))
                 fig_bar.update_layout(
                     template='plotly_white', xaxis_title="แรงผลัก (ตัน)",
-                    yaxis=dict(autorange="reverse"), margin=dict(l=20, r=20, t=20, b=20)
+                    yaxis=dict(autorange="reversed"), margin=dict(l=20, r=20, t=20, b=20)
                 )
                 st.plotly_chart(fig_bar, use_container_width=True)
                 
