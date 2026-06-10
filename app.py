@@ -568,92 +568,79 @@ with tab4:
         else:
             drift_limit_factor = 0.020
             cat_text = "อาคารทั่วไป (เช่น สำนักงาน/ที่พักอาศัย) ลิมิตดริฟต์ต้องไม่เกิน 2.0% ของความสูงชั้น"
-
-        # 🎨 ส่วนเพิ่มใหม่: กล่องอธิบายด้วยภาพ (Visual Explanation) ในแอป
-        with st.expander("❓ ทำไมต้องจำกัดระยะโยกตัว (Story Drift)? และมันคำนวณอย่างไรคลิกเพื่อดูภาพประกอบ"):
-            st.markdown(f"**🎯 เกณฑ์ที่แอปใช้ตรวจจับตึกของคุณคือ:** {cat_text}")
-            st.markdown("หากอาคารโยกตัวมากเกินไป น้ำหนักตึกที่กดทับลงมาจะทำให้เสาที่เอียงอยู่เกิดโมเมนต์ดัดเพิ่มขึ้นมหาศาล (P-Delta Effect) จนเสาหักพังทลาย หรือทำให้กระจก/ผนังอิฐแตกร่วงลงมาทำอันตรายได้")
+        # 🎨 ส่วนเพิ่มใหม่ระดับโปร: วาดกราฟิกจำลองการโยกตัวของตึกด้วย Plotly (Interactive Structural Diagram)
+        with st.expander("❓ ทำไมต้องจำกัดระยะโยกตัว (Story Drift)? และตัวแปรแต่ละตัวคืออะไร คลิกเพื่อดูภาพประกอบ", expanded=True):
+            st.markdown(f"**🎯 เกณฑ์ควบคุมที่แอปใช้ในโปรเจกต์นี้:** {cat_text}")
+            st.markdown("อาคารที่โยกตัวมากเกินไป น้ำหนักตึกที่กดทับลงมาจะทำให้เสาที่เอียงอยู่เกิดโมเมนต์ดัดเพิ่มขึ้นมหาศาล (P-Delta Effect) จนเสาหัก หรือทำให้กระจกและผนังแตกหล่นลงมาทำอันตรายได้")
             
-            col_pic1, col_pic2 = st.columns([1.2, 1])
+            col_pic1, col_pic2 = st.columns([1, 1.2])
             with col_pic1:
-                st.info("💡 **คอนเซปต์การคำนวณ:**\n\n"
-                        "เราไม่ได้ดูว่าดาดฟ้าโยกไปไกลแค่ไหน แต่เราดู **'ความต่าง'** ของการโยกตัวระหว่างชั้นบนและชั้นล่างที่ติดกันต่างหาก")
+                st.info("💡 **คอนเซปต์การคำนวณ Story Drift:**\n\n"
+                        "วิศวกรไม่ได้ดูแค่ว่าดาดฟ้าโยกไปไกลแค่ไหน แต่ต้องคุม **'ความต่าง'** ของระยะโยกระหว่างชั้นบนและชั้นล่างที่ติดกัน")
                 st.latex(r"\text{อัตราส่วนดริฟต์} = \frac{\Delta}{h} = \frac{\delta_{top} - \delta_{bot}}{h}")
+                st.markdown("""
+                **คำอธิบายสัญลักษณ์:**
+                * **$W_x$**: น้ำหนักที่รวมศูนย์ ณ จุด CG ของชั้นนั้นๆ
+                * **$F_x$**: แรงผลักแผ่นดินไหวที่กระทำต่อชั้น
+                * **$h_x$**: ความสูงสะสมจากฐานราก
+                * **$\delta_e$**: ระยะโยกตัวพืดหยุ่นเทียบกับฐานราก
+                * **$\Delta$**: ระยะดริฟต์ (ความต่างของการโยกตัวระหว่างชั้น)
+                """)
             
             with col_pic2:
-                # วาดรูปจำลองพฤติกรรมให้ผู้ใช้เข้าใจง่ายๆ
-                st.markdown("""
-                ```text
-                 [ ภาพจำลองการโยกตัว ]
-                 
-                 ชั้น 2 ──► δ_top (โยกไป 5 cm)
-                  │
-                  │ h = 300 cm (ความสูงชั้น)
-                  │
-                 ชั้น 1 ──► δ_bot (โยกไป 2 cm)
+                # --- สร้างโค้ดวาดรูปจำลองอาคาร (Structural Displacement Model) ---
+                import plotly.graph_objects as go
+                fig_model = go.Figure()
                 
-                 Δ (ระยะดริฟต์) = 5 - 2 = 3 cm
-                 อัตราส่วน = 3 / 300 = 0.01 (คือ 1.0%)
-                ```
-                """)
-
-        # ตรวจสอบว่ามีข้อมูลจาก Sub-tab 1 แล้วหรือยัง
-        if 'floor_names' in locals() and len(floor_names) > 0:
-            st.markdown("💡 **วิธีทำ:** เปิดโปรแกรมวิเคราะห์โครงสร้าง (เช่น ETABS) รันโหลดเคสแผ่นดินไหวสถิต แล้วเอาค่า **Joint Displacement** (หน่วย: เซนติเมตร) ของแต่ละชั้นมาหยอดลงในคอลัมน์สีฟ้าด้านล่างนี้:")
-            
-            drift_df = pd.DataFrame({
-                "ชื่อชั้น": floor_names,
-                "ความสูงสะสม hx (ม.)": hx,
-                "ระยะเคลื่อนตัวพืดหยุ่นจากโปรแกรม δ_e (ซม.)": np.linspace(2.0, 0.4, len(hx)) 
-            })
-            
-            edited_drift = st.data_editor(
-                drift_df, num_rows="fixed", use_container_width=True,
-                column_config={
-                    "ชื่อชั้น": st.column_config.TextColumn("ชื่อชั้น", disabled=True),
-                    "ความสูงสะสม hx (ม.)": st.column_config.NumberColumn("ความสูงสะสม hx (ม.)", disabled=True, format="%.2f"),
-                    "ระยะเคลื่อนตัวพืดหยุ่นจากโปรแกรม δ_e (ซม.)": st.column_config.NumberColumn(
-                        "ระยะเคลื่อนตัวพืดหยุ่นจากโปรแกรม δ_e (ซม.)", min_value=0.0, format="%.3f"
-                    )
-                }, key="drift_editor"
-            )
-            
-            delta_e = edited_drift["ระยะเคลื่อนตัวพืดหยุ่นจากโปรแกรม δ_e (ซม.)"].values
-            delta_x = (Cd * delta_e) / Ie 
-            
-            story_h = np.zeros_like(hx)
-            drift_ratio = np.zeros_like(hx)
-            status = []
-            
-            for i in range(len(hx)):
-                h_net = hx[i] if i == len(hx)-1 else hx[i] - hx[i+1]
-                story_h[i] = h_net
+                # พิกัดตึกเดิม (กว้าง 3 หน่วย, สูงชั้นละ 3 หน่วย)
+                x_orig = [0, 3] 
+                y_orig = [0, 3, 6, 9] 
+                # พิกัดเสียรูป (สมมติระยะโยกเพื่อให้เห็นภาพ)
+                dx = [0, 0.6, 1.5, 2.2] 
                 
-                delta_diff = delta_x[i] if i == len(hx)-1 else delta_x[i] - delta_x[i+1]
-                drift_ratio[i] = delta_diff / (h_net * 100) 
-                
-                if drift_ratio[i] <= drift_limit_factor:
-                    status.append("✅ ผ่านเกณฑ์ (PASS)")
-                else:
-                    status.append("❌ เกณฑ์พัง (FAIL)")
+                # 1. วาดตึกสภาพเดิม (สีเทาเส้นประ)
+                for i in range(4): # คาน
+                    fig_model.add_trace(go.Scatter(x=x_orig, y=[y_orig[i], y_orig[i]], mode='lines', line=dict(color='#d1d5db', width=3, dash='dash'), hoverinfo='skip'))
+                for x in x_orig: # เสา
+                    fig_model.add_trace(go.Scatter(x=[x, x], y=[0, 9], mode='lines', line=dict(color='#d1d5db', width=3, dash='dash'), hoverinfo='skip'))
                     
-            res_drift = edited_drift.copy()
-            res_drift["ความสูงชั้นสุทธิ (ม.)"] = story_h
-            res_drift["ระยะเคลื่อนตัวจริงในสนาม δ_x (ซม.)"] = delta_x
-            res_drift["อัตราส่วนดริฟต์ใช้งาน (Δ/h)"] = drift_ratio
-            res_drift["ค่าลิมิตสูงสุดกฎหมาย (Limit)"] = drift_limit_factor
-            res_drift["ผลการประเมิน"] = status
-            
-            st.markdown("### 🏆 ผลลัพธ์การตรวจสอบเสถียรภาพอาคาร")
-            st.dataframe(res_drift.style.map(
-                lambda x: 'background-color: #dcfce7; color: #166534; font-weight: bold;' if 'PASS' in str(x) 
-                else ('background-color: #fee2e2; color: #991b1b; font-weight: bold;' if 'FAIL' in str(x) else ''),
-                subset=['ผลการประเมิน']
-            ).format({
-                "ระยะเคลื่อนตัวจริงในสนาม δ_x (ซม.)": "{:.2f}", 
-                "อัตราส่วนดริฟต์ใช้งาน (Δ/h)": "{:.4f}",
-                "ค่าลิมิตสูงสุดกฎหมาย (Limit)": "{:.4f}"
-            }), use_container_width=True)
-            
-        else:
-            st.warning("⚠️ โปรแกรมกำลังรอข้อมูลขนาดตึกและน้ำหนักจากหน้าย่อยที่ 1 กรุณากรอกข้อมูลให้เสร็จสิ้นก่อนระบบจึงจะเปิดให้ตรวจสอบสเต็ปนี้ได้ครับ")
+                # 2. วาดตึกขณะแผ่นดินไหว (สีน้ำเงิน)
+                for i in range(1, 4):
+                    # คาน
+                    fig_model.add_trace(go.Scatter(x=[x_orig[0]+dx[i], x_orig[1]+dx[i]], y=[y_orig[i], y_orig[i]], mode='lines+markers', line=dict(color='#3b82f6', width=5), marker=dict(size=8, color='#1e3a8a'), name=f'ชั้น {i}', hoverinfo='skip'))
+                    # เสาซ้ายและขวา
+                    fig_model.add_trace(go.Scatter(x=[x_orig[0]+dx[i-1], x_orig[0]+dx[i]], y=[y_orig[i-1], y_orig[i]], mode='lines', line=dict(color='#3b82f6', width=5), showlegend=False, hoverinfo='skip'))
+                    fig_model.add_trace(go.Scatter(x=[x_orig[1]+dx[i-1], x_orig[1]+dx[i]], y=[y_orig[i-1], y_orig[i]], mode='lines', line=dict(color='#3b82f6', width=5), showlegend=False, hoverinfo='skip'))
+                
+                # 3. ใส่ลูกศรและข้อความประกอบ (Annotations)
+                # แรง Fx
+                fig_model.add_annotation(x=dx[3], y=9, ax=-1.5, ay=9, xref='x', yref='y', axref='x', ayref='y', showarrow=True, arrowhead=2, arrowsize=1.5, arrowwidth=2, arrowcolor='#ef4444')
+                fig_model.add_annotation(x=-0.5, y=9.4, text="<b>Fx</b>", showarrow=False, font=dict(color='#ef4444', size=14))
+                
+                # น้ำหนัก Wx
+                fig_model.add_annotation(x=(x_orig[0]+x_orig[1])/2 + dx[3], y=9.5, text="<b>Wx</b>", showarrow=False, font=dict(color='#059669', size=14))
+                
+                # ความสูง hx
+                fig_model.add_annotation(x=-1.5, y=9, ax=-1.5, ay=0, xref='x', yref='y', axref='x', ayref='y', showarrow=True, arrowhead=2, arrowwidth=1.5, arrowcolor='#d97706')
+                fig_model.add_annotation(x=-1.5, y=0, ax=-1.5, ay=9, xref='x', yref='y', axref='x', ayref='y', showarrow=True, arrowhead=2, arrowwidth=1.5, arrowcolor='#d97706')
+                fig_model.add_annotation(x=-2.0, y=4.5, text="<b>hx</b>", showarrow=False, font=dict(color='#d97706', size=14))
+                
+                # ระยะโยกสะสม delta_e
+                fig_model.add_annotation(x=x_orig[1], y=9, ax=x_orig[1]+dx[3], ay=9, xref='x', yref='y', axref='x', ayref='y', showarrow=True, arrowhead=2, arrowwidth=1.5, arrowcolor='#9333ea')
+                fig_model.add_annotation(x=x_orig[1] + dx[3]/2, y=9.5, text="<b>δe</b>", showarrow=False, font=dict(color='#9333ea', size=14))
+                
+                # ดริฟต์ (Drift) ระหว่างชั้น
+                fig_model.add_annotation(x=x_orig[1]+dx[2], y=7.5, ax=x_orig[1]+dx[3], ay=7.5, xref='x', yref='y', axref='x', ayref='y', showarrow=True, arrowhead=2, arrowwidth=2, arrowcolor='#db2777')
+                fig_model.add_annotation(x=x_orig[1] + (dx[2]+dx[3])/2 + 0.5, y=7.5, text="<b>Δ (Drift)</b>", showarrow=False, font=dict(color='#db2777', size=14))
+
+                # ซ่อนเส้น Grid และปรับความสวยงาม
+                fig_model.update_layout(
+                    xaxis=dict(visible=False, range=[-3, 7]),
+                    yaxis=dict(visible=False, range=[-1, 10]),
+                    plot_bgcolor='rgba(0,0,0,0)',
+                    paper_bgcolor='rgba(0,0,0,0)',
+                    margin=dict(l=0, r=0, t=10, b=0),
+                    height=300,
+                    showlegend=False
+                )
+                st.plotly_chart(fig_model, use_container_width=True, config={'displayModeBar': False})
