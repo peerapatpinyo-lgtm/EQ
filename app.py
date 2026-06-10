@@ -163,76 +163,69 @@ Base_Shear = Cs_design * building_weight
 tab1, tab2, tab3 = st.tabs(["📊 พารามิเตอร์", "📈 กราฟสเปกตรัม", "🏢 แรงเฉือนที่ฐาน"])
 
 with tab1:
-    st.header("📋 สรุปพารามิเตอร์และรายการคำนวณ")
+    st.header("📋 รายการคำนวณพารามิเตอร์ (Step-by-Step)")
+    st.markdown("แสดงลำดับการคำนวณพารามิเตอร์การตอบสนองเชิงสเปกตรัมตามมาตรฐาน **มยผ. 1301/1302-61**")
     
     # --- ส่วนที่ 1 ---
-    st.subheader("1. ข้อมูลความเร่งตอบสนองเชิงสเปกตรัม (จากแผนที่แผ่นดินไหว)")
-    st.markdown("ดึงข้อมูลจากตารางมาตรฐาน มยผ. ตามสถานที่ก่อสร้างที่เลือก:")
+    st.subheader("1. ความเร่งตอบสนองเชิงสเปกตรัมระดับหินฐาน")
+    st.markdown(f"อ้างอิงจากแผนที่เสี่ยงภัยแผ่นดินไหว (สถานที่: อ.**{selected_district}** จ.**{selected_province}**)")
     col1, col2 = st.columns(2)
-    col1.metric("Ss (คาบสั้น 0.2 วินาที)", f"{Ss:.3f} g")
-    col2.metric("S1 (คาบ 1.0 วินาที)", f"{S1:.3f} g")
+    col1.metric("Ss (ความเร่งที่คาบ 0.2 วินาที)", f"{Ss:.3f} g")
+    col2.metric("S1 (ความเร่งที่คาบ 1.0 วินาที)", f"{S1:.3f} g")
     
-    st.markdown("---")
+    st.divider()
     
     # --- ส่วนที่ 2 ---
     st.subheader("2. ตัวคูณขยายอิทธิพลของชั้นดิน (Site Coefficients)")
-    st.markdown(f"**ประเภทชั้นดินที่ออกแบบ:** ชั้นดิน {site_class}")
-    st.markdown("หาค่า $F_a$ และ $F_v$ โดยการเทียบสมมติฐานเชิงเส้น (Linear Interpolation) จากตารางมาตรฐาน มยผ.")
+    st.markdown(f"ประเมินสำหรับชั้นดินประเภท **{site_class}** (ใช้วิธี Linear Interpolation จากตารางมาตรฐาน)")
     col3, col4 = st.columns(2)
-    col3.metric("Fa", f"{Fa:.3f}")
-    col4.metric("Fv", f"{Fv:.3f}")
+    col3.metric(f"Fa (พิจารณาจาก Ss = {Ss:.3f})", f"{Fa:.3f}")
+    col4.metric(f"Fv (พิจารณาจาก S1 = {S1:.3f})", f"{Fv:.3f}")
     
-    st.markdown("---")
+    st.divider()
     
     # --- ส่วนที่ 3 ---
     st.subheader("3. ความเร่งสเปกตรัมตอบสนองสำหรับการออกแบบ")
-    st.markdown("มาตรฐานกำหนดให้ปรับแก้ค่าความเร่งด้วยสภาพชั้นดิน ($S_{MS}, S_{M1}$) และปรับลดเป็นระดับออกแบบ ($S_{DS}, S_{D1}$) ดังนี้:")
+    st.markdown("คำนวณปรับแก้พารามิเตอร์เพื่อใช้ในการสร้างกราฟและหาแรงเฉือนที่ฐานอาคาร")
     
     col_eq1, col_eq2 = st.columns(2)
-    
     SMS = Fa * Ss
     SM1 = Fv * S1
     
     with col_eq1:
-        st.success("**ความเร่งปรับแก้ตามสภาพชั้นดินสูงสุด**")
-        st.latex(r"S_{MS} = F_a \times S_s")
-        # แก้ไขบรรทัดนี้: เพิ่มวงเล็บปีกกาเป็น {{MS}}
-        st.latex(rf"S_{{MS}} = {Fa:.3f} \times {Ss:.3f} = {SMS:.3f} \text{{ g}}")
-        
-        st.latex(r"S_{M1} = F_v \times S_1")
-        # แก้ไขบรรทัดนี้: เพิ่มวงเล็บปีกกาเป็น {{M1}}
-        st.latex(rf"S_{{M1}} = {Fv:.3f} \times {S1:.3f} = {SM1:.3f} \text{{ g}}")
+        st.info("🔹 **การพิจารณาช่วงคาบสั้น (0.2 วินาที)**")
+        st.latex(r"S_{MS} = F_a S_S" + rf" = {Fa:.3f} \times {Ss:.3f} = {SMS:.3f} \text{{ g}}")
+        st.latex(r"S_{DS} = \frac{2}{3} S_{MS}" + rf" = \frac{{2}}{{3}} \times {SMS:.3f} = {SDS:.3f} \text{{ g}}")
         
     with col_eq2:
-        st.error("**ความเร่งสเปกตรัมสำหรับการออกแบบ**")
-        st.latex(r"S_{DS} = \frac{2}{3} S_{MS}")
-        # แก้ไขบรรทัดนี้: เพิ่มวงเล็บปีกกาเป็น {{DS}}
-        st.latex(rf"S_{{DS}} = \frac{{2}}{{3}} \times {SMS:.3f} = {SDS:.3f} \text{{ g}}")
-        
-        st.latex(r"S_{D1} = \frac{2}{3} S_{M1}")
-        # แก้ไขบรรทัดนี้: เพิ่มวงเล็บปีกกาเป็น {{D1}}
-        st.latex(rf"S_{{D1}} = \frac{{2}}{{3}} \times {SM1:.3f} = {SD1:.3f} \text{{ g}}")
+        st.info("🔹 **การพิจารณาช่วงคาบยาว (1.0 วินาที)**")
+        st.latex(r"S_{M1} = F_v S_1" + rf" = {Fv:.3f} \times {S1:.3f} = {SM1:.3f} \text{{ g}}")
+        st.latex(r"S_{D1} = \frac{2}{3} S_{M1}" + rf" = \frac{{2}}{{3}} \times {SM1:.3f} = {SD1:.3f} \text{{ g}}")
 
-    st.markdown("---")
+    st.divider()
     
     # --- ส่วนที่ 4 ---
-    st.subheader("4. การคำนวณคาบเวลาโครงสร้าง (Periods)")
+    st.subheader("4. คาบเวลาโครงสร้างและจุดควบคุมกราฟสเปกตรัม")
     col_t1, col_t2 = st.columns(2)
     
     with col_t1:
-        st.markdown("**คาบเวลาโครงสร้างโดยประมาณ ($T_a$)**")
-        st.markdown("พิจารณาจากระบบต้านทานแรงด้านข้างและความสูงอาคาร:")
-        st.latex(r"T_a = C_t h_n^x")
-        st.latex(rf"T_a = {Ta:.3f} \text{{ วินาที}}")
+        st.success("🏗️ **คาบเวลาโครงสร้างโดยประมาณ ($T_a$)**")
+        st.markdown(f"ระบบโครงสร้าง: **{sys_type}**")
+        
+        # ดึงตัวแปร Ct และ x มาแสดงให้เห็นแบบโปร่งใส
+        params = {"โครงต้านทานแรงดัดเหล็กกล้า": (0.0724, 0.8), "โครงต้านทานแรงดัดคอนกรีตเสริมเหล็ก": (0.0466, 0.9), "โครงสร้างอื่นๆ": (0.0488, 0.75)}
+        Ct, x = params.get(sys_type, (0.0488, 0.75))
+        
+        st.latex(r"T_a = C_t h_n^x" + rf" = {Ct} \times {building_height}^{{{x}}} = {Ta:.3f} \text{{ s}}")
         
     with col_t2:
-        st.markdown("**คาบเวลาเปลี่ยนผ่านของกราฟสเปกตรัม ($T_0, T_S$)**")
+        st.warning("📈 **จุดเปลี่ยนผ่านบนกราฟ ($T_0, T_S$)**")
         if SDS > 0:
-            st.latex(r"T_S = \frac{S_{D1}}{S_{DS}}" + rf" = \frac{{{SD1:.3f}}}{{{SDS:.3f}}} = {TS:.3f} \text{{ วินาที}}")
-            st.latex(r"T_0 = 0.2 T_S" + rf" = 0.2 \times {TS:.3f} = {T0:.3f} \text{{ วินาที}}")
+            st.latex(r"T_S = \frac{S_{D1}}{S_{DS}}" + rf" = \frac{{{SD1:.3f}}}{{{SDS:.3f}}} = {TS:.3f} \text{{ s}}")
+            st.latex(r"T_0 = 0.2 T_S" + rf" = 0.2 \times {TS:.3f} = {T0:.3f} \text{{ s}}")
         else:
-            st.latex(r"T_S = 0.000 \text{ วินาที}")
-            st.latex(r"T_0 = 0.000 \text{ วินาที}")
+            st.latex(r"T_S = 0.000 \text{ s}")
+            st.latex(r"T_0 = 0.000 \text{ s}")
 
 with tab2:
     T_values = np.linspace(0.0, max(4.0, Ta * 1.5), 300)
