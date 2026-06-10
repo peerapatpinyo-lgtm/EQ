@@ -287,12 +287,7 @@ with tab2:
 
     # ผังการตัดสินใจ
     st.subheader("ผังการตัดสินใจเลือกวิธีวิเคราะห์")
-    try:
-        import graphviz
-        dot_source = plots.get_roadmap_dot()
-        st.graphviz_chart(dot_source, use_container_width=True)
-    except Exception:
-        st.info("💡 ติดตั้ง `graphviz` เพื่อแสดงผังการตัดสินใจ: `pip install graphviz`")
+    st.graphviz_chart(plots.get_roadmap_dot(), use_container_width=True)
 
 
 # ╔══════════════════════════════════════════════════════════════════════════════
