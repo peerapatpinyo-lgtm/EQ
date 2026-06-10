@@ -136,7 +136,8 @@ tab1, tab2, tab3, tab4, tab5 = st.tabs([
     "🚦 2. ประเภท SDC", 
     "📈 3. Response Spectrum", 
     "🏢 4. Equivalent Static",
-    "🧠 5. สรุป Mind Map (ESP)"  # เพิ่มแท็บที่ 5 ตรงนี้
+    "🧠 5. สรุป Mind Map (ESP)",
+    "6: Dynamic Analysis"  # เพิ่มแท็บที่ 5 ตรงนี้
 ])
 
 # ─────────────────────────── TAB 1 ───────────────────────────
