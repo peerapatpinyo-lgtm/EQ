@@ -1,964 +1,613 @@
+"""
+app.py — โปรแกรมคำนวณแรงแผ่นดินไหว มยผ. 1301/1302-61
+Streamlit Application — ปรับปรุงโครงสร้างและการคำนวณครบถ้วน
+"""
+
 import streamlit as st
 import pandas as pd
 import numpy as np
 
-# นำเข้าโมดูลที่แยกฟังก์ชันออกมา
-from data_loader import load_data
+from data_loader import load_data, STRUCTURAL_SYSTEMS, get_drift_limit
 import calculations as calc
 import plots
 
-# ==========================================
-# การตั้งค่าหน้าจอและ UI ตั้งต้น
-# ==========================================
-st.set_page_config(page_title="DPT Seismic Calculator", page_icon="🏢", layout="wide")
-st.title("🏢 โปรแกรมคำนวณแรงแผ่นดินไหว (มยผ. 1301/1302)")
-st.markdown("**โปรแกรมคำนวณแรงเฉือนที่ฐานอาคารและประเมินประเภทการออกแบบต้านทานแผ่นดินไหว**")
+# ═══════════════════════════════════════════════════════════════════════════════
+# ตั้งค่าหน้าจอ
+# ═══════════════════════════════════════════════════════════════════════════════
+st.set_page_config(
+    page_title="DPT Seismic Calculator — มยผ. 1301/1302-61",
+    page_icon="🏢",
+    layout="wide"
+)
+st.title("🏢 โปรแกรมคำนวณแรงแผ่นดินไหว (มยผ. 1301/1302-61)")
+st.caption(
+    "คำนวณแรงเฉือนที่ฐาน · ประเมิน SDC · ตรวจสอบ Story Drift · P-Delta Stability"
+    " — อ้างอิงมาตรฐาน มยผ. 1301/1302 ฉบับปรับปรุง พ.ศ. 2561"
+)
 
 df_location = load_data()
 
-# ==========================================
-# ส่วนรับข้อมูลผู้ใช้งาน (Sidebar Inputs)
-# ==========================================
+# ═══════════════════════════════════════════════════════════════════════════════
+# Sidebar — รับข้อมูลผู้ใช้งาน
+# ═══════════════════════════════════════════════════════════════════════════════
 with st.sidebar:
     st.header("⚙️ ข้อมูลการออกแบบ")
 
-    st.subheader("1. ข้อมูลสถานที่ตั้ง")
-    input_method = st.radio("รูปแบบการนำเข้าพารามิเตอร์", ["ดึงจากฐานข้อมูล", "กรอกค่า Ss, S1 ด้วยตนเอง"])
-
-    if input_method == "ดึงจากฐานข้อมูล":
-        province_list = df_location['Province'].unique()
-        selected_province = st.selectbox("เลือกจังหวัด", province_list)
-        district_list = df_location[df_location['Province'] == selected_province]['District']
-        selected_district = st.selectbox("เลือกอำเภอ", district_list)
-    else:
-        selected_province = "กำหนดเอง"
-        selected_district = "กำหนดเอง"
-        manual_Ss = st.number_input("ค่า Ss (g)", min_value=0.000, max_value=3.000, value=0.500, step=0.010, format="%.3f")
-        manual_S1 = st.number_input("ค่า S1 (g)", min_value=0.000, max_value=2.000, value=0.200, step=0.010, format="%.3f")
-
-    site_class = st.selectbox("ประเภทชั้นดิน", ['A', 'B', 'C', 'D', 'E', 'F'], index=3)
-
-    st.subheader("2. ข้อมูลโครงสร้าง")
-    importance_factor = st.selectbox("ตัวคูณความสำคัญ (Ie)", [1.0, 1.25, 1.5], index=0)
-    r_factor = st.number_input("ตัวคูณปรับลดผลตอบสนอง (R)", min_value=1.0, max_value=8.0, value=5.0, step=0.5)
-    sys_type = st.selectbox(
-        "ระบบโครงสร้าง (หา Ta)",
-        ["โครงต้านทานแรงดัดคอนกรีตเสริมเหล็ก", "โครงต้านทานแรงดัดเหล็กกล้า", "โครงสร้างอื่นๆ"]
+    # ── 1. สถานที่ตั้ง / ค่า Ss, S1 ──────────────────────────────────────────
+    st.subheader("1. พารามิเตอร์ภัยแผ่นดินไหวพื้นที่")
+    input_method = st.radio(
+        "รูปแบบนำเข้าพารามิเตอร์",
+        ["ดึงจากฐานข้อมูล มยผ.", "กรอกค่า Ss, S1 ด้วยตนเอง"]
     )
 
-    st.subheader("3. มิติและน้ำหนัก")
-    building_height = st.number_input("ความสูงอาคาร hn (เมตร)", min_value=1.0, value=10.0, step=1.0)
-    building_weight = st.number_input("น้ำหนักรวม W (ตัน)", min_value=1.0, value=500.0, step=100.0)
+    if input_method == "ดึงจากฐานข้อมูล มยผ.":
+        province_list    = df_location['Province'].unique()
+        selected_province = st.selectbox("จังหวัด", province_list)
+        district_list    = df_location[df_location['Province'] == selected_province]['District']
+        selected_district = st.selectbox("อำเภอ", district_list)
+    else:
+        selected_province = selected_district = "กำหนดเอง"
+        manual_Ss = st.number_input("Ss (g)", 0.000, 3.000, 0.500, 0.010, "%.3f")
+        manual_S1 = st.number_input("S1 (g)", 0.000, 2.000, 0.200, 0.010, "%.3f")
 
-# ==========================================
-# ตรวจสอบเงื่อนไขตั้งต้นและการจัดการ Error
-# ==========================================
+    site_class = st.selectbox(
+        "ประเภทชั้นดิน", ['A', 'B', 'C', 'D', 'E', 'F'], index=3,
+        help="A=หินแข็ง  B=หินแข็งปานกลาง  C=ดินแข็ง  D=ดินแข็งปานกลาง  E=ดินอ่อน  F=ต้องศึกษาเฉพาะพื้นที่"
+    )
+
+    # ── 2. ข้อมูลอาคาร ────────────────────────────────────────────────────────
+    st.subheader("2. ข้อมูลอาคารและโครงสร้าง")
+    importance_factor = st.selectbox(
+        "ตัวคูณความสำคัญ Ie",
+        [1.0, 1.25, 1.5], index=0,
+        format_func=lambda v: {1.0: "1.0 — อาคารทั่วไป",
+                               1.25: "1.25 — อาคารสำคัญสูง",
+                               1.5: "1.5 — โรงพยาบาล/โรงไฟฟ้า"}[v]
+    )
+
+    sys_type = st.selectbox(
+        "ประเภทโครงสร้าง (สำหรับคำนวณ Ta)",
+        list(calc.PERIOD_PARAMS.keys())
+    )
+
+    building_height = st.number_input("ความสูงอาคาร hn (ม.)", 1.0, 500.0, 12.0, 1.0)
+
+    # ── 3. ตัวคูณซ้ำซ้อน ρ ────────────────────────────────────────────────────
+    st.subheader("3. ตัวคูณความซ้ำซ้อน (ρ)")
+    num_bays   = st.number_input("จำนวนช่วง Bay (แต่ละแนว)", 1, 20, 2, 1)
+    num_frames = st.number_input("จำนวนแนวโครงต้านแรงด้านข้าง", 1, 10, 2, 1)
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Guard Conditions
+# ═══════════════════════════════════════════════════════════════════════════════
 if site_class == 'F':
-    st.error("🛑 ชั้นดิน F ต้องเจาะสำรวจประเมินเฉพาะพื้นที่ (Site-Specific) เท่านั้น ไม่สามารถใช้ค่าคำนวณมาตรฐานได้")
+    st.error(
+        "🛑 **ชั้นดิน F** ต้องทำการศึกษาเฉพาะพื้นที่ (Site-Specific Response Analysis) "
+        "ไม่สามารถใช้ค่าคำนวณมาตรฐานจากโปรแกรมนี้ได้"
+    )
     st.stop()
 
-# ==========================================
-# ตรวจสอบเงื่อนไขตั้งต้นและการจัดการ Error (ระบบ Dual-Path แบบไม่ใช้ค่า 0.0)
-# ==========================================
-
-# 1. ดึงค่าพารามิเตอร์ Ss และ S1 ตั้งต้นมาตรวจสอบก่อน
-if input_method == "ดึงจากฐานข้อมูล":
-    location_row = df_location[
-        (df_location['Province'] == selected_province) & (df_location['District'] == selected_district)
+# ดึงหรือรับค่า Ss, S1
+SOFT_CLAY_PROVINCES = {
+    "กรุงเทพมหานคร", "นนทบุรี", "ปทุมธานี",
+    "สมุทรปราการ", "สมุทรสาคร", "สมุทรสงคราม", "นครปฐม", "ฉะเชิงเทรา"
+}
+if input_method == "ดึงจากฐานข้อมูล มยผ.":
+    if selected_province in SOFT_CLAY_PROVINCES:
+        st.warning(
+            "⚠️ **พื้นที่ดินเหนียวอ่อน (กทม. และปริมณฑล):** "
+            "ต้องใช้ Design Response Spectrum เฉพาะตาม **มยผ. 1302** โดยตรง "
+            "ไม่ใช่ Ss/S1 จากตาราง มยผ. 1301 โปรดอ้างอิงกราฟจากมาตรฐาน"
+        )
+        st.stop()
+    row = df_location[
+        (df_location['Province'] == selected_province) &
+        (df_location['District'] == selected_district)
     ].iloc[0]
-    Ss = float(location_row['Ss'])
-    S1 = float(location_row['S1'])
+    Ss = float(row['Ss'])
+    S1 = float(row['S1'])
 else:
     Ss = float(manual_Ss)
     S1 = float(manual_S1)
 
-# 2. ตรวจสอบเงื่อนไขว่าเป็นพื้นที่แอ่งกรุงเทพฯ หรือไม่ "โดยดูจากชื่อจังหวัด" (ไม่ต้องใช้ 0.0 แล้ว)
-bangkok_basin_provinces = [
-    "กรุงเทพมหานคร", "นนทบุรี", "ปทุมธานี", "สมุทรปราการ", 
-    "สมุทรสาคร", "สมุทรสงคราม", "นครปฐม", "ฉะเชิงเทรา"
-]
-is_bangkok_basin = (input_method == "ดึงจากฐานข้อมูล") and (selected_province in bangkok_basin_provinces)
+# ═══════════════════════════════════════════════════════════════════════════════
+# Engine — คำนวณพารามิเตอร์หลัก
+# ═══════════════════════════════════════════════════════════════════════════════
+Fa, Fv = calc.get_site_coefficients(site_class, Ss, S1)
+SMS = Fa * Ss
+SM1 = Fv * S1
+SDS = (2.0 / 3.0) * SMS
+SD1 = (2.0 / 3.0) * SM1
 
-if is_bangkok_basin:
-    # -----------------------------------------------------------------------
-    # PATH B: สำหรับพื้นที่ดินเหนียวอ่อนแอ่งกรุงเทพฯ (สเปกตรัมเฉพาะพื้นที่ มยผ. 1302-61)
-    # -----------------------------------------------------------------------
-    st.sidebar.success("🎯 เปิดใช้งาน: สเปกตรัมเฉพาะพื้นที่แอ่งกรุงเทพฯ อัตโนมัติ")
-    
-    # บังคับค่า Fa, Fv เป็น 1.0 (เนื่องจากค่า Ss, S1 ในฐานข้อมูลสำหรับพื้นที่นี้ถูกแปลงเป็นค่าที่ขยายตัวเสร็จแล้ว)
-    Fa, Fv = 1.000, 1.000
-    
-    SMS = Fa * Ss
-    SM1 = Fv * S1
-    SDS = (2.0 / 3.0) * SMS
-    SD1 = (2.0 / 3.0) * SM1
-    
-    # บังคับจุดควบคุมคาบเวลาตามพฤติกรรมดินเหนียวอ่อน
-    T0 = 0.200   # จุดเริ่มโหมดความเร่งคงที่
-    TS = 1.150   # จุดสิ้นสุดโหมดความเร่งคงที่ (ดินเหนียวอ่อนทำให้ช่วงคาบยาวสั่นพ้องกว้างขึ้น)
-    Ta = calc.calculate_approx_period(sys_type, building_height)
-    
-    # กำหนดประเภทการออกแบบ (SDC) อัตโนมัติตามเกณฑ์ควบคุมพื้นที่ดินเหนียวอ่อนพิเศษ
-    sdc = "ค" if importance_factor >= 1.25 else "ข"
-    sdc_sds = sdc
-    sdc_sd1 = sdc
+T0 = 0.2 * (SD1 / SDS) if SDS > 0 else 0.0
+TS = SD1 / SDS if SDS > 0 else 0.0
 
-else:
-    # -----------------------------------------------------------------------
-    # PATH A: สำหรับพื้นที่ทั่วไปในประเทศไทย (คำนวณตามขั้นตอนมาตรฐาน มยผ.)
-    # -----------------------------------------------------------------------
-    # ดักจับกรณีผู้ใช้เลือกชั้นดิน F ในพื้นที่ทั่วไป
-    if site_class == 'F':
-        st.error("🛑 ชั้นดิน F สำหรับพื้นที่ทั่วไป ต้องเจาะสำรวจประเมินเฉพาะพื้นที่ (Site-Specific) เท่านั้น ไม่สามารถใช้ค่าคำนวณมาตรฐานได้")
-        st.stop()
-        
-    # เรียกใช้ Pure Engine Calculations ตามขั้นตอนปกติ
-    Fa, Fv = calc.get_site_coefficients(site_class, Ss, S1)
-    
-    SMS = Fa * Ss
-    SM1 = Fv * S1
-    SDS = (2.0 / 3.0) * SMS
-    SD1 = (2.0 / 3.0) * SM1
+Ta       = calc.calculate_approx_period(sys_type, building_height)
+T_design = calc.get_period_upper_bound(SD1, Ta)   # = Cu·Ta
 
-    T0 = 0.2 * (SD1 / SDS) if SDS > 0 else 0.0
-    TS = SD1 / SDS if SDS > 0 else 0.0
-    Ta = calc.calculate_approx_period(sys_type, building_height)
+sdc, sdc_sds, sdc_sd1, sdc_notes = calc.evaluate_sdc_detailed(SDS, SD1, S1, importance_factor)
+rho, rho_note = calc.get_redundancy_factor(sdc, int(num_bays), int(num_frames))
 
-    sdc, sdc_sds, sdc_sd1 = calc.evaluate_sdc_detailed(SDS, SD1, importance_factor)
-
-# ==========================================
-# จัดการแท็บการแสดงผลหลัก (Main Tabs Display)
-# ==========================================
+# ═══════════════════════════════════════════════════════════════════════════════
+# แท็บหลัก
+# ═══════════════════════════════════════════════════════════════════════════════
 st.markdown("---")
-# เพิ่ม tab_dynamic เข้าไปด้านซ้าย เพื่อให้ครบ 6 ตัวพอดีกับชื่อด้านขวา
-tab1, tab2, tab3, tab4, tab5, tab_dynamic, tab_dynamic_calc = st.tabs([
-    "📋 1. พารามิเตอร์ออกแบบ", 
-    "🚦 2. ประเภท SDC", 
-    "📈 3. Response Spectrum", 
-    "🏢 4. Equivalent Static",
-    "🧠 5. สรุป Mind Map (ESP)",
-    "📊 6. โฟลว์ชาร์ต Dynamic",
-    "⚙️ 7. คำนวณ Dynamic (Scaling)" # <-- แท็บใหม่
+tab1, tab2, tab3, tab4, tab5 = st.tabs([
+    "📋 พารามิเตอร์สเปกตรัม",
+    "🛡️ SDC & ผังการตัดสินใจ",
+    "📈 กราฟสเปกตรัม",
+    "🏢 แรงสถิตเทียบเท่า",
+    "📏 Drift & P-Delta",
 ])
 
-# ─────────────────────────── TAB 1 ───────────────────────────
+# ╔══════════════════════════════════════════════════════════════════════════════
+# TAB 1 — พารามิเตอร์สเปกตรัม (Step-by-Step)
+# ╔══════════════════════════════════════════════════════════════════════════════
 with tab1:
-    st.header("📋 รายการคำนวณพารามิเตอร์ (Step-by-Step)")
-    st.markdown("แสดงลำดับการคำนวณพารามิเตอร์การตอบสนองเชิงสเปกตรัมตามมาตรฐาน **มยผ. 1301/1302**")
-
-    st.subheader("1. ความเร่งตอบสนองเชิงสเปกตรัมระดับหินฐาน")
-    if input_method == "ดึงจากฐานข้อมูล":
-        st.markdown(f"อ้างอิงจากแผนที่เสี่ยงภัยแผ่นดินไหว (สถานที่: อ.**{selected_district}** จ.**{selected_province}**)")
-    else:
-        st.markdown("อ้างอิงจาก **ข้อมูลพารามิเตอร์ที่ผู้ใช้งานกำหนดเอง**")
-
-    col1, col2 = st.columns(2)
-    col1.metric("Ss (ความเร่งที่คาบ 0.2 วินาที)", f"{Ss:.3f} g")
-    col2.metric("S1 (ความเร่งที่คาบ 1.0 วินาที)", f"{S1:.3f} g")
-    st.divider()
-
-    st.subheader("2. ตัวคูณขยายอิทธิพลของชั้นดิน (Site Coefficients)")
-    st.markdown(f"ประเมินสำหรับชั้นดินประเภท **{site_class}** (ใช้วิธี Linear Interpolation จากตารางมาตรฐาน)")
-    col3, col4 = st.columns(2)
-    col3.metric(f"Fa (พิจารณาจาก Ss = {Ss:.3f})", f"{Fa:.3f}")
-    col4.metric(f"Fv (พิจารณาจาก S1 = {S1:.3f})", f"{Fv:.3f}")
-    st.divider()
-
-    st.subheader("3. ความเร่งสเปกตรัมตอบสนองสำหรับการออกแบบ")
-    col_eq1, col_eq2 = st.columns(2)
-    with col_eq1:
-        st.info("🔹 **การพิจารณาช่วงคาบสั้น (0.2 วินาที)**")
-        st.latex(r"S_{MS} = F_a S_S" + rf" = {Fa:.3f} \times {Ss:.3f} = {SMS:.3f} \text{{ g}}")
-        st.latex(r"S_{DS} = \frac{2}{3} S_{MS}" + rf" = \frac{{2}}{{3}} \times {SMS:.3f} = {SDS:.3f} \text{{ g}}")
-    with col_eq2:
-        st.info("🔹 **การพิจารณาช่วงคาบยาว (1.0 วินาที)**")
-        st.latex(r"S_{M1} = F_v S_1" + rf" = {Fv:.3f} \times {S1:.3f} = {SM1:.3f} \text{{ g}}")
-        st.latex(r"S_{D1} = \frac{2}{3} S_{M1}" + rf" = \frac{{2}}{{3}} \times {SM1:.3f} = {SD1:.3f} \text{{ g}}")
-    st.divider()
-
-    st.subheader("4. คาบเวลาโครงสร้างและจุดควบคุมกราฟสเปกตรัม")
-    col_t1, col_t2 = st.columns(2)
-    with col_t1:
-        st.success("🏗️ **คาบเวลาโครงสร้างโดยประมาณ ($T_a$)**")
-        params_dict = {"โครงต้านทานแรงดัดเหล็กกล้า": (0.0724, 0.8), "โครงต้านทานแรงดัดคอนกรีตเสริมเหล็ก": (0.0466, 0.9), "โครงสร้างอื่นๆ": (0.0488, 0.75)}
-        Ct, x_exp = params_dict.get(sys_type, (0.0488, 0.75))
-        st.latex(r"T_a = C_t h_n^x" + rf" = {Ct} \times {building_height}^{{{x_exp}}} = {Ta:.3f} \text{{ s}}")
-    with col_t2:
-        st.warning("📈 **จุดเปลี่ยนผ่านบนกราฟ ($T_0, T_S$)**")
-        if SDS > 0:
-            st.latex(r"T_S = \frac{S_{D1}}{S_{DS}}" + rf" = \frac{{{SD1:.3f}}}{{{SDS:.3f}}} = {TS:.3f} \text{{ s}}")
-            st.latex(r"T_0 = 0.2 T_S" + rf" = 0.2 \times {TS:.3f} = {T0:.3f} \text{{ s}}")
-        else:
-            st.latex(r"T_S = 0.000 \text{ s}")
-            st.latex(r"T_0 = 0.000 \text{ s}")
-
-# ─────────────────────────── TAB 2 ───────────────────────────
-with tab2:
-    st.header("🛡️ ผลการประเมินประเภทการออกแบบ (Seismic Design Category)")
-    sdc_actions = {
-        'ก': {'title': "ประเภท ก (SDC A) - ความเสี่ยงภัยแผ่นดินไหวต่ำมาก", 'analysis': "✅ อนุญาตให้ไม่ต้องวิเคราะห์แรงแผ่นดินไหวแบบเต็มรูปแบบ", 'detailing': "🔧 ใช้รายละเอียดโครงสร้างปกติ (ไม่ต้องจัดเหล็กปลอกต้านแผ่นดินไหว)", 'action': "📝 **สิ่งที่ต้องทำต่อ:** ออกแบบให้ต้านทานแรงข้างขั้นต่ำอย่างน้อย 1%W ($0.01W$)"},
-        'ข': {'title': "ประเภท ข (SDC B) - ความเสี่ยงภัยแผ่นดินไหวต่ำ", 'analysis': "✅ สามารถใช้วิธีแรงสถิตเทียบเท่า (Equivalent Static) ได้", 'detailing': "🔧 ต้องจัดรายละเอียดโครงสร้างให้มีความเหนียวจำกัด (Ordinary Ductility)", 'action': "📝 **สิ่งที่ต้องทำต่อ:** ไปที่ Tab 4 เพื่อคำนวณแรงเฉือนที่ฐาน"},
-        'ค': {'title': "ประเภท ค (SDC C) - ความเสี่ยงภัยแผ่นดินไหวปานกลาง", 'analysis': "⚠️ ใช้วิธีแรงสถิตเทียบเท่าได้เฉพาะอาคารที่มีรูปทรงสม่ำเสมอ (Regular)", 'detailing': "🚨 **บังคับ:** โครงสร้างต้องออกแบบให้มีความเหนียวปานกลาง (Intermediate Ductility)", 'action': "📝 **สิ่งที่ต้องทำต่อ:** เช็กความสม่ำเสมอของรูปทรงอาคารก่อนคำนวณที่ Tab 4"},
-        'ง': {'title': "ประเภท ง (SDC D) - ความเสี่ยงภัยแผ่นดินไหวสูง (เข้มงวดที่สุด)", 'analysis': "❌ **ข้อจำกัดสูง:** ใช้วิธีแรงสถิตได้เฉพาะอาคารสม่ำเสมอและสูงไม่เกินเกณฑ์", 'detailing': "🚨 **บังคับขั้นสูงสุด:** โครงสร้างต้องมีความเหนียวสูง (Special Ductility)", 'action': "📝 **สิ่งที่ต้องทำต่อ:** หากตรวจความไม่สม่ำเสมอไม่ผ่าน บังคับส่งต่อไปวิธีพลศาสตร์ทันที!"}
-    }
-
-    if sdc == 'ก':
-        st.success(f"✅ **อาคารนี้จัดอยู่ในประเภทการออกแบบสุดท้าย: '{sdc}'**")
-    else:
-        st.warning(f"⚠️ **อาคารนี้จัดอยู่ในประเภทการออกแบบสุดท้าย: '{sdc}'**")
-    st.markdown(f"👉 **ทิศทางการออกแบบถัดไป:** {sdc_actions[sdc]['action']}")
-    st.markdown("---")
-
-    st.subheader("🗺️ แผนผังขั้นตอนการเลือกวิธีวิเคราะห์ (Seismic Analysis Decision Flowchart)")
-    st.graphviz_chart(plots.get_roadmap_dot())
-    st.markdown("---")
-
-    with st.expander("🔍 ดูที่มาและข้อบังคับแยกตามพารามิเตอร์อย่างละเอียด"):
-        st.markdown(f"**ปัจจัยร่วม:** ตัวคูณความสำคัญของอาคาร ($I_e$) = **{importance_factor}**")
-        ie_data = {"ระดับความสำคัญ": ["อาคารทั่วไป", "อาคารความสำคัญสูง", "อาคารความสำคัญสูงมาก"], "ค่า Ie": ["1.00", "1.25", "1.50"], "ลักษณะอาคาร (ตัวอย่าง)": ["ที่พักอาศัย, อาคารพาณิชย์ทั่วไป", "โรงเรียน, สถานที่ชุมนุมคนขนาดใหญ่", "โรงพยาบาล, สถานีดับเพลิง, ศูนย์ภัยพิบัติ"]}
-        st.table(pd.DataFrame(ie_data).set_index("ระดับความสำคัญ"))
-        st.divider()
-        col_sdc1, col_sdc2 = st.columns(2)
-        with col_sdc1:
-            st.markdown(f"### 1. พิจารณาจากความเร่งคาบสั้น ($S_{{DS}}$)")
-            st.markdown(f"📉 ค่าที่ได้: $S_{{DS}} =$ **{SDS:.3f} g**")
-            st.info(f"🎯 **ตกเกณฑ์: {sdc_actions[sdc_sds]['title']}**\n\n* {sdc_actions[sdc_sds]['analysis']}\n* {sdc_actions[sdc_sds]['detailing']}")
-        with col_sdc2:
-            st.markdown(f"### 2. พิจารณาจากความเร่งคาบยาว ($S_{{D1}}$)")
-            st.markdown(f"📉 ค่าที่ได้: $S_{{D1}} =$ **{SD1:.3f} g**")
-            st.info(f"🎯 **ตกเกณฑ์: {sdc_actions[sdc_sd1]['title']}**\n\n* {sdc_actions[sdc_sd1]['analysis']}\n* {sdc_actions[sdc_sd1]['detailing']}")
-        st.divider()
-        st.error(f"🏆 ผลลัพธ์ที่ควบคุมการออกแบบ (Governing SDC) คือ: **ประเภท '{sdc}'**")
-
-
-# ─────────────────────────── TAB 3 ───────────────────────────
-with tab3:
-    st.header("📈 กราฟความเร่งตอบสนองเชิงสเปกตรัม (Response Spectrum)")
-    
-    if sdc == 'ก':
-        st.info("💡 **ข้อแนะนำทางกฎหมาย:** โครงสร้างจัดอยู่ในประเภท SDC 'ก' ซึ่งมีความเสี่ยงภัยแผ่นดินไหวต่ำมาก ตามมาตรฐาน มยผ. ไม่บังคับให้ต้องวิเคราะห์สเปกตรัมโดยวิธีขั้นสูง กราฟแสดงไว้เพื่อการตรวจสอบเชิงวิศวกรรมเท่านั้น")
-        
-    st.markdown("""
-    ### 🔬 บทวิเคราะห์พฤติกรรมโครงสร้าง (Structural Dynamic Analysis)
-    กราฟด้านล่างแสดงความสัมพันธ์ระหว่าง **คาบเวลาธรรมชาติ ($T$)** และ **ความเร่งตอบสนองเชิงสเปกตรัม ($S_a$)** ซึ่งเป็นตัวแทนของแรงสูงสุดที่โครงสร้างจะได้รับในรูปแบบของสัดส่วนแรงโน้มถ่วง ($g$) โดยจะถูกแปลงเป็นแรงเฉือนที่ฐานอาคาร (Base Shear) ต่อไป
-    """)
-
-    # ปรับสเกลแกน X อัตโนมัติให้สวยงาม ครอบคลุมจุดสำคัญ
-    max_T_plot = max(4.0, Ta * 1.5, TS * 2.5)
-    T_values = np.linspace(0.0, max_T_plot, 500)
-    Sa_values = np.array([calc.compute_spectrum_sa(t, SDS, SD1, T0, TS) for t in T_values])
-    Sa_Ta = calc.compute_spectrum_sa(Ta, SDS, SD1, T0, TS)
-
-    # 1. แสดงผลกราฟสเปกตรัมตอบสนองเชิงปฏิสัมพันธ์ (Interactive Plotly Curve)
-    fig_spectrum = plots.create_spectrum_plot(T_values, Sa_values, Ta, Sa_Ta, T0, TS, SDS)
-    st.plotly_chart(fig_spectrum, use_container_width=True)
-    
-    # 2. ตารางสรุปพิกัดสำคัญ (Key Coordinates Table) สำหรับนำไปใช้เขียนรายงาน
-    st.subheader("📌 สรุปพิกัดและค่าพารามิเตอร์สำคัญบนสเปกตรัม (Key Spectrum Coordinates)")
-    st.markdown("วิศวกรสามารถใช้ค่าพิกัดเหล่านี้ในการตรวจสอบความถูกต้องของพฤติกรรมโครงสร้าง หรือนำไปป้อนลงในโปรแกรมคำนวณสำเร็จรูปอื่นๆ ได้:")
-    
-    key_points = pd.DataFrame({
-        "ขอบเขตพฤติกรรม / จุดควบคุม": [
-            "จุดเริ่มต้นคาบสั้น (T = 0) [ค่า Peak Ground Acceleration, PGA]", 
-            f"จุดเริ่มโหมดความเร่งคงที่ (T0 = {T0:.3f} วินาที)", 
-            f"จุดสิ้นสุดโหมดความเร่งคงที่ (TS = {TS:.3f} วินาที)", 
-            "จุดอ้างอิงพฤติกรรมคาบยาว (T = 1.000 วินาที)", 
-            f"🎯 พิกัดของอาคารที่กำลังคำนวณ (Ta = {Ta:.3f} วินาที)"
-        ],
-        "คาบเวลา T (วินาที)": [0.0, T0, TS, 1.0, Ta],
-        "ความเร่งเชิงสเปกตรัม Sa (g)": [
-            calc.compute_spectrum_sa(0.0, SDS, SD1, T0, TS), 
-            calc.compute_spectrum_sa(T0, SDS, SD1, T0, TS), 
-            calc.compute_spectrum_sa(TS, SDS, SD1, T0, TS), 
-            calc.compute_spectrum_sa(1.0, SDS, SD1, T0, TS), 
-            Sa_Ta
-        ]
-    })
-    
-    # ตกแต่งตารางข้อมูล ไฮไลท์บรรทัดของอาคารปัจจุบันเป็นสีส้มเด่นชัดเพื่อความเป็นมืออาชีพ
-    st.dataframe(
-        key_points.style.format({
-            "คาบเวลา T (วินาที)": "{:.3f}", 
-            "ความเร่งเชิงสเปกตรัม Sa (g)": "{:.3f}"
-        }).apply(lambda x: ['background: #fff7ed; color: #c2410c; font-weight: bold; border-left: 4px solid #ff7f0e' if i == 4 else '' for i in range(len(x))], axis=0), 
-        use_container_width=True, hide_index=True
+    st.header("📋 รายการคำนวณพารามิเตอร์ Response Spectrum")
+    st.markdown(
+        f"อ้างอิงมาตรฐาน **มยผ. 1301-61** | "
+        f"สถานที่: **อ.{selected_district}  จ.{selected_province}** | "
+        f"ชั้นดิน: **{site_class}** | Ie = **{importance_factor}**"
     )
-    
-    # 3. กล่องพับแสดงสมการและแหล่งอ้างอิงตามกฎหมายควบคุมอาคาร
-    with st.expander("📚 เอกสารอ้างอิงและสมการควบคุมตามมาตรฐาน มยผ. (Governing Equations & References)"):
-        st.markdown("""
-        #### 🏛️ กฎหมายและมาตรฐานอ้างอิง (Legal References)
-        1. **มาตรฐาน มยผ. 1301/1302-61:** มาตรฐานการออกแบบอาคารต้านทานการสั่นสะเทือนของแผ่นดินไหว กรมโยธาธิการและผังเมือง (บทที่ 4 หน้า 23-25)
-        2. **มาตรฐานสากล ASCE/SEI 7-16:** Minimum Design Loads and Associated Criteria for Buildings and Other Structures (Chapter 11 - Seismic Design Criteria)
-        
-        #### 🔢 เงื่อนไขฟังก์ชันคณิตศาสตร์แบบแบ่งช่วง (Piecewise Functions)
-        กราฟความเร่งสเปกตรัมตอบสนองแบ่งออกเป็นสมการควบคุมตามช่วงเวลาดังนี้:
-        """)
-        
-        col_eq1, col_eq2, col_eq3 = st.columns(3)
-        with col_eq1:
-            st.markdown("**ช่วงที่ 1: คาบสั้นมาก ($0 \le T < T_0$)**")
-            st.latex(r"S_a = S_{DS} \left( 0.4 + 0.6 \frac{T}{T_0} \right)")
-            st.caption("โครงสร้างขยับตัวตามแผ่นดินไหวแบบ Rigid Body")
-        with col_eq2:
-            st.markdown("**ช่วงที่ 2: ความเร่งคงที่ ($T_0 \le T \le T_S$)**")
-            st.latex(r"S_a = S_{DS}")
-            st.caption("เกิดผลของการขยายตัวสั่นสะเทือนสูงสุด (Resonance Zone)")
-        with col_eq3:
-            st.markdown("**ช่วงที่ 3: คาบยาว ($T > T_S$)**")
-            st.latex(r"S_a = \frac{S_{D1}}{T}")
-            st.caption("อาคารสูง/ยืดหยุ่น ความเร่งลดลงแต่ระยะโยกตัวเพิ่มสูงขึ้น")
+
+    # ── ขั้นที่ 1: Ss, S1 ─────────────────────────────────────────────────────
+    with st.expander("ขั้นที่ 1 — ความเร่งตอบสนองสเปกตรัมระดับหินฐาน", expanded=True):
+        c1, c2 = st.columns(2)
+        c1.metric("Ss — ความเร่งที่คาบ 0.2 s", f"{Ss:.3f} g")
+        c2.metric("S1 — ความเร่งที่คาบ 1.0 s", f"{S1:.3f} g")
+        if S1 >= 0.60:
+            st.warning(f"⚠️ S1 = {S1:.3f} g ≥ 0.60 g → เงื่อนไขพิเศษ Cs,min จะถูกนำมาใช้ใน Tab 4")
+        if S1 >= 0.75:
+            st.error(f"🛑 S1 = {S1:.3f} g ≥ 0.75 g → บังคับ SDC ง ทันที")
+
+    # ── ขั้นที่ 2: Fa, Fv ────────────────────────────────────────────────────
+    with st.expander("ขั้นที่ 2 — ตัวคูณขยายอิทธิพลชั้นดิน Fa และ Fv", expanded=True):
+        st.markdown(f"ประเมินสำหรับชั้นดิน **{site_class}** ด้วย Linear Interpolation จากตาราง มยผ.")
+        c3, c4 = st.columns(2)
+        c3.metric(f"Fa (จาก Ss = {Ss:.3f} g)", f"{Fa:.3f}")
+        c4.metric(f"Fv (จาก S1 = {S1:.3f} g)", f"{Fv:.3f}")
+
+    # ── ขั้นที่ 3: SMS, SM1, SDS, SD1 ───────────────────────────────────────
+    with st.expander("ขั้นที่ 3 — ความเร่งสเปกตรัมออกแบบ SDS และ SD1", expanded=True):
+        col_s, col_l = st.columns(2)
+        with col_s:
+            st.info("**ช่วงคาบสั้น (0.2 s)**")
+            st.latex(rf"S_{{MS}} = F_a S_S = {Fa:.3f} \times {Ss:.3f} = {SMS:.4f}\ \text{{g}}")
+            st.latex(rf"S_{{DS}} = \tfrac{{2}}{{3}} S_{{MS}} = \tfrac{{2}}{{3}} \times {SMS:.4f} = {SDS:.4f}\ \text{{g}}")
+        with col_l:
+            st.info("**ช่วงคาบยาว (1.0 s)**")
+            st.latex(rf"S_{{M1}} = F_v S_1 = {Fv:.3f} \times {S1:.3f} = {SM1:.4f}\ \text{{g}}")
+            st.latex(rf"S_{{D1}} = \tfrac{{2}}{{3}} S_{{M1}} = \tfrac{{2}}{{3}} \times {SM1:.4f} = {SD1:.4f}\ \text{{g}}")
+        m1, m2, m3, m4 = st.columns(4)
+        m1.metric("SDS", f"{SDS:.4f} g")
+        m2.metric("SD1", f"{SD1:.4f} g")
+        m3.metric("T₀", f"{T0:.4f} s")
+        m4.metric("Tₛ", f"{TS:.4f} s")
+
+    # ── ขั้นที่ 4: Ta, Cu·Ta ─────────────────────────────────────────────────
+    with st.expander("ขั้นที่ 4 — คาบเวลาโครงสร้าง Ta และขีดจำกัด Cu·Ta", expanded=True):
+        Ct_val, x_val = calc.PERIOD_PARAMS.get(sys_type, (0.0488, 0.75))
+        col_ta, col_cu = st.columns(2)
+        with col_ta:
+            st.success("**คาบเวลาประมาณ Ta**")
+            st.latex(
+                rf"T_a = C_t \cdot h_n^x = {Ct_val} \times {building_height:.1f}^{{{x_val}}} = {Ta:.4f}\ \text{{s}}"
+            )
+        with col_cu:
+            st.success("**ขีดจำกัดบน T_design = Cu · Ta**")
+            Cu = T_design / Ta if Ta > 0 else 1.0
+            st.latex(rf"T_{{design}} = C_u \cdot T_a = {Cu:.2f} \times {Ta:.4f} = {T_design:.4f}\ \text{{s}}")
+            st.caption("T_design ใช้เป็น T ในสูตร Cs,max เท่านั้น ไม่ใช้คำนวณ Fx")
+
+    # ── สรุปผล ────────────────────────────────────────────────────────────────
+    with st.expander("🔖 สรุปพารามิเตอร์ทั้งหมด", expanded=False):
+        summary = {
+            "พารามิเตอร์": ["Ss", "S1", "Fa", "Fv", "SMS", "SM1",
+                            "SDS", "SD1", "T₀", "Tₛ", "Ta", "Cu·Ta"],
+            "ค่า":         [f"{Ss:.4f} g", f"{S1:.4f} g",
+                            f"{Fa:.4f}", f"{Fv:.4f}",
+                            f"{SMS:.4f} g", f"{SM1:.4f} g",
+                            f"{SDS:.4f} g", f"{SD1:.4f} g",
+                            f"{T0:.4f} s", f"{TS:.4f} s",
+                            f"{Ta:.4f} s", f"{T_design:.4f} s"],
+            "ที่มา": ["แผนที่ มยผ.", "แผนที่ มยผ.",
+                     "ตาราง 11.4-1", "ตาราง 11.4-2",
+                     "Fa×Ss", "Fv×S1",
+                     "2/3 SMS", "2/3 SM1",
+                     "0.2 Ts", "SD1/SDS",
+                     "Ct·hn^x", "Cu·Ta"],
+        }
+        st.dataframe(pd.DataFrame(summary), use_container_width=True, hide_index=True)
 
 
-# ───────────────────────────────────────────────────────────────────────────
-# TAB 4: การวิเคราะห์โครงสร้างด้วยวิธีแรงสถิตเทียบเท่า (Equivalent Static Procedure)
-# ───────────────────────────────────────────────────────────────────────────
-with tab4:
-    st.header("🏢 วิธีแรงสถิตเทียบเท่า (Equivalent Static Procedure)")
-    st.markdown("""
-    ระบบคำนวณการกระจายแรงแผ่นดินไหวตามแนวดิ่ง และประเมินเสถียรภาพการโยกตัวของอาคารตามมาตรฐาน **มยผ. 1301/1302-61**
-    *(วิธีนี้เหมาะสำหรับอาคารที่มีรูปทรงสม่ำเสมอและมีความสูงอยู่ในเกณฑ์ที่มาตรฐานกำหนด)*
-    """)
+# ╔══════════════════════════════════════════════════════════════════════════════
+# TAB 2 — SDC & ผังการตัดสินใจ
+# ╔══════════════════════════════════════════════════════════════════════════════
+with tab2:
+    st.header("🛡️ ประเภทการออกแบบต้านทานแผ่นดินไหว (SDC)")
 
-    # ==========================================
-    # สเต็ปที่ 1: การกำหนดระบบโครงสร้างและคำนวณสัมประสิทธิ์ Cs
-    # ==========================================
-    st.subheader("⚡ สเต็ปที่ 1: กำหนดสัมประสิทธิ์โครงสร้างและตรวจสอบค่า Cs ตัวควบคุม")
-    
-    structural_systems = {
-        "โครงนำแรงดัด คสล. ความเหนียวสูง (SMF)":              {"R": 8.0, "Omega": 3.0, "Cd": 5.5},
-        "โครงนำแรงดัด คสล. ความเหนียวปานกลาง (IMF)":           {"R": 5.0, "Omega": 3.0, "Cd": 4.5},
-        "โครงนำแรงดัด คสล. ความเหนียวธรรมดา (OMF)":            {"R": 3.0, "Omega": 3.0, "Cd": 2.5},
-        "กำแพงรับแรงเฉือน คสล. ความเหนียวสูง (Special SW)":    {"R": 6.0, "Omega": 2.5, "Cd": 5.0},
-        "กำแพงรับแรงเฉือน คสล. ความเหนียวธรรมดา (Ordinary SW)": {"R": 5.0, "Omega": 2.5, "Cd": 4.5}
+    # Badge สรุป SDC
+    sdc_colors = {'ก': '#10b981', 'ข': '#f59e0b', 'ค': '#f97316', 'ง': '#ef4444'}
+    sdc_color  = sdc_colors.get(sdc, '#64748b')
+    st.markdown(
+        f"<div style='background:{sdc_color};color:white;padding:18px 28px;"
+        f"border-radius:12px;font-size:26px;font-weight:700;display:inline-block;'>"
+        f"SDC ประเภท {sdc}</div>",
+        unsafe_allow_html=True
+    )
+    st.markdown("")
+
+    # เหตุผลการกำหนด SDC
+    with st.container(border=True):
+        c_sds, c_sd1, c_final = st.columns(3)
+        c_sds.metric("SDC จาก SDS", f"ประเภท {sdc_sds}", f"SDS = {SDS:.4f} g")
+        c_sd1.metric("SDC จาก SD1", f"ประเภท {sdc_sd1}", f"SD1 = {SD1:.4f} g")
+        c_final.metric("SDC สุดท้าย (ค่ามากกว่า)", f"ประเภท {sdc}", "ใช้ค่านี้ในการออกแบบ")
+
+    for note in sdc_notes:
+        st.warning(note)
+
+    # ρ
+    with st.container(border=True):
+        st.markdown(f"**ตัวคูณความซ้ำซ้อน ρ = {rho}**  |  {rho_note}")
+
+    # ข้อกำหนดตาม SDC
+    SDC_INFO = {
+        'ก': {
+            'analysis':   "✅ ไม่ต้องคำนวณแรงแผ่นดินไหวเต็มรูปแบบ",
+            'minimum':    "📌 ออกแบบต้านทานแรงด้านข้างขั้นต่ำ = 0.01W",
+            'detailing':  "🔧 ใช้รายละเอียดโครงสร้างปกติ ไม่ต้องจัดเหล็กปลอกต้านแผ่นดินไหว",
+            'restriction':"ℹ️ ไม่มีข้อจำกัดพิเศษ",
+        },
+        'ข': {
+            'analysis':   "✅ ใช้วิธีแรงสถิตเทียบเท่า (ESP) ได้",
+            'minimum':    "📌 ต้องคำนวณและออกแบบตามแรงแผ่นดินไหวจริง",
+            'detailing':  "🔧 ต้องจัดรายละเอียดโครงสร้างระดับ Ordinary (OMF/OSW)",
+            'restriction':"ℹ️ ข้อจำกัดน้อย — เน้น detailing ขั้นต้น",
+        },
+        'ค': {
+            'analysis':   "✅ ใช้ ESP ได้ หากโครงสร้างสม่ำเสมอและสูงไม่เกินเกณฑ์",
+            'minimum':    "📌 ต้องคำนวณแรงแผ่นดินไหวและออกแบบตาม SDC ค",
+            'detailing':  "🔧 ต้องจัดรายละเอียดระดับ Intermediate (IMF/ISW)",
+            'restriction':"⚠️ ห้ามใช้ OMF/OSW โดยไม่มีข้อกำหนดพิเศษ",
+        },
+        'ง': {
+            'analysis':   "⚡ หากโครงสร้างไม่สม่ำเสมอหรือสูงเกินเกณฑ์ → บังคับใช้ Modal RSA หรือ Time-History",
+            'minimum':    "📌 ต้องคำนวณแรงแผ่นดินไหวและออกแบบตาม SDC ง อย่างเข้มงวด",
+            'detailing':  "🔧 ต้องจัดรายละเอียดระดับ Special (SMF/SSW) เท่านั้น",
+            'restriction':"🛑 ห้ามใช้ OMF/IMF และ Ordinary SW โดยเด็ดขาด",
+        },
     }
 
-    selected_system = st.selectbox("🔷 เลือกระบบโครงสร้างต้านทานแรงด้านข้าง (Seismic Resisting System):", list(structural_systems.keys()))
-    R_sys   = structural_systems[selected_system]["R"]
-    Omega0  = structural_systems[selected_system]["Omega"]
-    Cd      = structural_systems[selected_system]["Cd"]
+    info = SDC_INFO.get(sdc, {})
+    with st.expander(f"ข้อกำหนดสำหรับ SDC ประเภท {sdc}", expanded=True):
+        for k, v in info.items():
+            st.markdown(f"- {v}")
 
-    # คำนวณขีดจำกัดสัมประสิทธิ์ผลตอบสนองแผ่นดินไหว (Cs) ตามกฎหมายควบคุมอาคาร
-    Cs_tab4_basic = SDS / (R_sys / importance_factor) if R_sys > 0 else 0.0
-    Cs_tab4_max   = SD1 / (Ta * (R_sys / importance_factor)) if (Ta > 0 and R_sys > 0) else Cs_tab4_basic
-    Cs_tab4_min   = 0.01
-    if S1 >= 0.6:
-        Cs_tab4_min = max(Cs_tab4_min, (0.5 * S1) / (R_sys / importance_factor))
-    
-    # ค่า Cs ที่ใช้จริง (Governing Cs)
-    Cs_gov = max(Cs_tab4_min, min(Cs_tab4_basic, Cs_tab4_max))
+    # ผังการตัดสินใจ
+    st.subheader("ผังการตัดสินใจเลือกวิธีวิเคราะห์")
+    try:
+        import graphviz
+        dot_source = plots.get_roadmap_dot()
+        st.graphviz_chart(dot_source, use_container_width=True)
+    except Exception:
+        st.info("💡 ติดตั้ง `graphviz` เพื่อแสดงผังการตัดสินใจ: `pip install graphviz`")
 
-    # แสดงพารามิเตอร์หลักผ่านระบบ Metric Layout ให้เห็นชัดเจน
-    col_m1, col_m2, col_m3, col_m4 = st.columns(4)
-    col_m1.metric("ตัวคูณลดแรงออกแบบ (R)", f"{R_sys:.1f}")
-    col_m2.metric("ตัวคูณเพิ่มกำลังส่วนวิกฤต (Ω₀)", f"{Omega0:.1f}")
-    col_m3.metric("ตัวคูณขยายระยะโยก (Cd)", f"{Cd:.1f}")
-    col_m4.metric("สัมประสิทธิ์แรงเฉือนที่ฐาน (Cs)", f"{Cs_gov:.4f}")
 
-    # แสดงที่มาของ Cs เพื่อให้วิศวกรใช้ตรวจสอบความถูกต้อง (Engineering Transparency)
-    with st.expander("🔍 ดูรายละเอียดเกณฑ์ขีดจำกัดสัมประสิทธิ์ Cs (Seismic Response Coefficient Limits)"):
-        col_cs1, col_cs2 = st.columns(2)
-        with col_cs1:
-            st.markdown("**สมการควบคุมตาม มยผ. 1302:**")
-            st.latex(r"C_{s,\text{basic}} = \frac{S_{DS}}{R / I_e}")
-            st.latex(r"C_{s,\text{max}} = \frac{S_{D1}}{T_a (R / I_e)}")
-            st.latex(r"C_{s,\text{min}} = 0.01 \quad \left(\text{หรือ } \frac{0.5 S_1}{R / I_e} \text{ ถ้า } S_1 \ge 0.6g\right)")
-        with col_cs2:
-            st.markdown("**ค่าที่คำนวณได้รายสมการ:**")
-            st.write(f"• $C_{{s,\\text{{basic}}}}$ = `{Cs_tab4_basic:.4f}`")
-            st.write(f"• $C_{{s,\\text{{max}}}}$ = `{Cs_tab4_max:.4f}` *(ขีดจำกัดบน)*")
-            st.write(f"• $C_{{s,\\text{{min}}}}$ = `{Cs_tab4_min:.4f}` *(ขีดจำกัดล่าง)*")
-            st.info(f"🎯 **ค่าควบคุมที่เลือกใช้:** $C_s$ = **{Cs_gov:.4f}** (ผ่านการคัดกรองตามข้อกำหนดแล้ว)")
+# ╔══════════════════════════════════════════════════════════════════════════════
+# TAB 3 — กราฟสเปกตรัม
+# ╔══════════════════════════════════════════════════════════════════════════════
+with tab3:
+    st.header("📈 กราฟ Design Response Spectrum")
 
-    st.divider()
+    if sdc == 'ก':
+        st.info("💡 อาคาร SDC ประเภท ก ไม่ต้องวิเคราะห์สเปกตรัมเต็มรูปแบบ "
+                "(แสดงไว้เพื่ออ้างอิง)")
 
-    # ==========================================
-    # สเต็ปที่ 2: แท็บย่อยรายงานผลคำนวณและประเมินระบบ
-    # ==========================================
-    sub_tab1, sub_tab2 = st.tabs(["🏗️ 1. รายงานการคำนวณแรงประจำชั้น", "📏 2. รายงานการตรวจสอบการโยกตัวระหว่างชั้น"])
+    T_plot    = np.linspace(0.0, max(4.0, Ta * 2.0, TS * 3.0), 800)
+    Sa_plot   = np.array([calc.compute_spectrum_sa(t, SDS, SD1, T0, TS) for t in T_plot])
+    Sa_Ta     = calc.compute_spectrum_sa(Ta, SDS, SD1, T0, TS)
+    Sa_Td     = calc.compute_spectrum_sa(T_design, SDS, SD1, T0, TS)
 
-    # --- แท็บย่อยที่ 1: การกระจายแรงตามแนวดิ่ง ---
-    with sub_tab1:
-        st.markdown("##### 📝 ข้อมูลมิติและน้ำหนักอาคารรายชั้น (กรอกเรียงจาก ชั้นบนสุด ลงไป ชั้นล่างสุด)")
-        
-        # ตารางตั้งต้นที่ผู้ใช้สามารถแก้ไข เพิ่ม หรือลบชั้นได้อิสระ
-        default_stories = pd.DataFrame([
-            {"ชื่อชั้น (Floor)": "ชั้น 4 (ดาดฟ้า)", "ความสูงสะสม hx (ม.)": 14.0, "น้ำหนักรวม wx (ตัน)": 150.0},
-            {"ชื่อชั้น (Floor)": "ชั้น 3",           "ความสูงสะสม hx (ม.)": 10.5, "น้ำหนักรวม wx (ตัน)": 200.0},
-            {"ชื่อชั้น (Floor)": "ชั้น 2",           "ความสูงสะสม hx (ม.)":  7.0, "น้ำหนักรวม wx (ตัน)": 200.0},
-            {"ชื่อชั้น (Floor)": "ชั้น 1",           "ความสูงสะสม hx (ม.)":  3.5, "น้ำหนักรวม wx (ตัน)": 220.0},
-        ])
+    fig_spec = plots.create_spectrum_plot(
+        T_plot, Sa_plot, Ta, T_design, Sa_Ta, Sa_Td, T0, TS, SDS, SD1
+    )
+    st.plotly_chart(fig_spec, use_container_width=True)
 
-        edited_df = st.data_editor(
-            default_stories, num_rows="dynamic", use_container_width=True,
-            column_config={
-                "ชื่อชั้น (Floor)": st.column_config.TextColumn("ชื่อชั้น (Floor)", required=True, help="ระบุชื่อเรียกชั้น เช่น Floor 1, Roof"),
-                "ความสูงสะสม hx (ม.)": st.column_config.NumberColumn("ความสูงสะสม hx (ม.)", min_value=0.0, format="%.2f", required=True, help="ความสูงวัดจากฐานหรือจุดรองรับถึงระดับชั้นนั้นๆ"),
-                "น้ำหนักรวม wx (ตัน)": st.column_config.NumberColumn("น้ำหนักรวม wx (ตัน)", min_value=0.0, format="%.2f", required=True, help="น้ำหนักบรรทุกคงที่รวมกับน้ำหนักบรรทุกจรตามสัดส่วนที่มาตรฐานกำหนด"),
-            }, key="force_editor"
+    # ตารางค่าที่คาบสำคัญ
+    with st.expander("ตารางค่า Sa ณ คาบสำคัญ"):
+        key_T = [0.0, T0, TS, Ta, T_design, 1.0, 2.0, 3.0, 4.0]
+        key_T = sorted(set([round(t, 4) for t in key_T if t >= 0]))
+        rows  = [(t, calc.compute_spectrum_sa(t, SDS, SD1, T0, TS)) for t in key_T]
+        st.dataframe(
+            pd.DataFrame(rows, columns=["T (s)", "Sa (g)"]).style.format({"T (s)": "{:.4f}", "Sa (g)": "{:.4f}"}),
+            use_container_width=True, hide_index=True
         )
 
-        clean_df = edited_df.dropna(subset=["ความสูงสะสม hx (ม.)", "น้ำหนักรวม wx (ตัน)"]).copy()
 
-        if clean_df.empty:
-            st.warning("⚠️ กรุณากรอกข้อมูลระดับความสูงและน้ำหนักในตารางอย่างน้อย 1 ชั้น เพื่อเริ่มทำการคำนวณ")
-        else:
-            floor_names = clean_df["ชื่อชั้น (Floor)"].astype(str).values
-            hx = clean_df["ความสูงสะสม hx (ม.)"].astype(float).values
-            wx = clean_df["น้ำหนักรวม wx (ตัน)"].astype(float).values
+# ╔══════════════════════════════════════════════════════════════════════════════
+# TAB 4 — แรงสถิตเทียบเท่า (Equivalent Static Procedure)
+# ╔══════════════════════════════════════════════════════════════════════════════
+with tab4:
+    st.header("🏢 วิธีแรงสถิตเทียบเท่า (Equivalent Static Procedure)")
 
-            # ประมวลผลกระจายแรงผ่านฟังก์ชันแกนหลักใน calculations.py
-            total_W, total_V, k_exp, sum_w_hx_k, cvx, Fx, Vx, Mx = calc.calculate_story_forces(hx, wx, Cs_gov, Ta)
+    # เตือนถ้า SDC ง และต้องพิจารณา Dynamic
+    if sdc == 'ง':
+        st.warning(
+            "⚠️ **SDC ประเภท ง** — ต้องตรวจสอบความสม่ำเสมอโครงสร้างก่อน "
+            "หากโครงสร้างไม่สม่ำเสมอหรือสูงเกิน 50 ม. ต้องใช้วิธีพลศาสตร์ (Modal RSA) แทน"
+        )
+    if sdc == 'ก':
+        st.info("ℹ️ SDC ก — ใช้แรงด้านข้างขั้นต่ำ 1%W ไม่ต้องคำนวณด้านล่าง")
 
-            # กล่องสรุปผลวิเคราะห์ภาพรวมโครงสร้าง (Executive Summary Card)
-            st.info(f"""
-            📊 **สรุปผลลัพธ์วิเคราะห์แรงสถิตเทียบเท่า:**
-            * น้ำหนักรวมของโครงสร้างที่พิจารณา ($W$) = **{total_W:,.2f} ตัน**
-            * แรงเฉือนที่ฐานอาคารทั้งหมด ($V = C_s \\times W$) = **{total_V:,.2f} ตัน**
-            * ตัวคูณเลขชี้กำลังการกระจายแรงตามแนวดิ่ง ($k$) = **{k_exp:.3f}** *(แปรผันตามคาบเวลาโครงสร้าง $T_a$)*
-            """)
+    # ── เลือกระบบโครงสร้าง ────────────────────────────────────────────────────
+    st.subheader("ขั้นที่ 1 — เลือกระบบต้านทานแรงด้านข้าง")
 
-            # สร้าง DataFrame สรุปรายงานสำหรับนำไปออกเล่มคำนวณ
-            res_force = pd.DataFrame({
-                "ชื่อชั้น (Floor)": floor_names, 
-                "ความสูงสะสม hx (ม.)": hx, 
-                "น้ำหนักรวม wx (ตัน)": wx,
-                "ตัวคูณกระจายแรง Cvx": cvx, 
-                "แรงผลักด้านข้าง Fx (ตัน)": Fx, 
-                "แรงเฉือนสะสมประจำชั้น Vx (ตัน)": Vx, 
-                "โมเมนต์พลิกคว่ำ Mx (ตัน-ม.)": Mx,
-            })
+    # จัดกลุ่มระบบโครงสร้าง
+    categories = {}
+    for name, info in STRUCTURAL_SYSTEMS.items():
+        cat = info["category"]
+        categories.setdefault(cat, []).append(name)
 
-            st.markdown("### 📊 ตารางสรุปแรงออกแบบแผ่นดินไหวประจำชั้น (Story Forces Summary Report)")
-            st.dataframe(
-                res_force.style.format({
-                    "ความสูงสะสม hx (ม.)": "{:.2f}", 
-                    "น้ำหนักรวม wx (ตัน)": "{:,.2f}", 
-                    "ตัวคูณกระจายแรง Cvx": "{:.4f}",
-                    "แรงผลักด้านข้าง Fx (ตัน)": "{:,.2f}", 
-                    "แรงเฉือนสะสมประจำชั้น Vx (ตัน)": "{:,.2f}", 
-                    "โมเมนต์พลิกคว่ำ Mx (ตัน-ม.)": "{:,.2f}",
-                }), use_container_width=True, hide_index=True
+    selected_cat = st.selectbox("กลุ่มระบบโครงสร้าง", list(categories.keys()))
+    selected_sys = st.selectbox("ระบบโครงสร้างต้านทานแรงด้านข้าง", categories[selected_cat])
+
+    sys_info = STRUCTURAL_SYSTEMS[selected_sys]
+    R_sys    = sys_info["R"]
+    Omega0   = sys_info["Omega0"]
+    Cd       = sys_info["Cd"]
+    hn_max_d = sys_info["hn_max_d"]
+
+    m1, m2, m3 = st.columns(3)
+    m1.metric("R — ตัวคูณลดผลตอบสนอง",     str(R_sys))
+    m2.metric("Ω₀ — ตัวคูณขยายกำลังส่วนวิกฤต", str(Omega0))
+    m3.metric("Cd — ตัวคูณขยายระยะโยก",       str(Cd))
+    if sys_info.get("note"):
+        st.caption(f"ℹ️ {sys_info['note']}")
+    if hn_max_d and building_height > hn_max_d and sdc == 'ง':
+        st.error(f"🛑 ระบบนี้จำกัดความสูง {hn_max_d} ม. ใน SDC ง — ความสูงอาคาร {building_height} ม. เกินเกณฑ์")
+
+    # ── Cs ────────────────────────────────────────────────────────────────────
+    st.subheader("ขั้นที่ 2 — สัมประสิทธิ์แรงเฉือนที่ฐาน Cs")
+
+    cs = calc.compute_cs(SDS, SD1, S1, T_design, R_sys, importance_factor)
+
+    with st.container(border=True):
+        st.markdown("**สูตรและผลลัพธ์ Cs**")
+        ce1, ce2 = st.columns(2)
+        with ce1:
+            st.latex(
+                rf"C_{{s,basic}} = \frac{{S_{{DS}}}}{{R/I_e}} "
+                rf"= \frac{{{SDS:.4f}}}{{{R_sys:.1f}/{importance_factor:.2f}}} = {cs['cs_basic']:.5f}"
             )
-
-            # แสดงผลแผนภาพกราฟแรงเฉือนและโมเมนต์พลิกคว่ำ (Interactive Engineering Plots)
-            st.markdown("### 📈 แผนภาพแสดงพฤติกรรมแรงและโมเมนต์ตามความสูงอาคาร")
-            fig_forces = plots.create_force_plot(floor_names, Fx, Vx, Mx)
-            st.plotly_chart(fig_forces, use_container_width=True)
-
-
-    # --- แท็บย่อยที่ 2: การตรวจสอบระยะการโยกตัว ---
-    with sub_tab2:
-        st.markdown("##### 📏 ตรวจสอบเกณฑ์ระยะเคลื่อนตัวและการโยกตัวระหว่างชั้น (Story Drift Safety Check)")
-        
-        # คำนวณเกณฑ์ควบคุมตามตัวคูณความสำคัญตามมาตรฐาน มยผ.
-        drift_limit_factor = 0.010 if importance_factor >= 1.5 else (0.015 if importance_factor >= 1.25 else 0.020)
-        cat_text = "อาคารความสำคัญสูงมาก (Limit = 1.0%)" if importance_factor >= 1.5 else ("อาคารความสำคัญสูง (Limit = 1.5%)" if importance_factor >= 1.25 else "อาคารทั่วไป (Limit = 2.0%)")
-
-        with st.container(border=True):
-            st.markdown(f"🎯 **ขีดจำกัดระยะโยกตัว (Drift Limit) ที่ควบคุมโครงการนี้:** **{drift_limit_factor * 100:.1f}%** ของความสูงชั้นสุทธิ ({cat_text})")
-            col_pic1, col_pic2 = st.columns([1, 1.2])
-            with col_pic1:
-                st.markdown("⚙️ **หลักการคำนวณพิจารณาเสถียรภาพ:**")
-                st.latex(r"\delta_x = \frac{C_d \times \delta_e}{I_e}")
-                st.latex(r"\Delta_{\text{story}} = \delta_{x,\text{top}} - \delta_{x,\text{bot}}")
-                st.latex(r"\text{Drift Ratio} = \frac{\Delta_{\text{story}}}{h_{\text{net}}} \le \text{Limit}")
-                st.caption("💡 ค่า δe คือระยะเคลื่อนตัวที่ได้จากการใส่แรง Fx เข้าไปในแบบจำลองโครงสร้างยืดหยุ่น (Elastic Analysis)")
-            with col_pic2:
-                fig_drift_model = plots.create_drift_model_plot()
-                st.plotly_chart(fig_drift_model, use_container_width=True, config={'displayModeBar': False})
-
-        if clean_df.empty:
-            st.info("💡 ระบบกำลังรอข้อมูลมิติอาคารรายชั้นจากแท็บย่อยที่ 1 เพื่อสร้างตารางตรวจสอบ Drift อัตโนมัติ")
-        else:
-            # สร้างอินพุตตารางตรวจสอบการโยกตัวที่สอดรับกับรายชื่อชั้นในแท็บแรกโดยอัตโนมัติ
-            drift_df = pd.DataFrame({
-                "ชื่อชั้น (Floor)": floor_names, 
-                "ความสูงสะสม hx (ม.)": hx, 
-                "ระยะเคลื่อนตัวยืดหยุ่นจากโปรแกรม δe (ซม.)": np.linspace(2.0, 0.4, len(hx))
-            })
-            
-            st.markdown("**กรุณาป้อนระยะเคลื่อนตัวยืดหยุ่น ($\delta_e$) จากโปรแกรมวิเคราะห์โครงสร้าง (เช่น ETABS, SAP2000):**")
-            edited_drift = st.data_editor(
-                drift_df, num_rows="fixed", use_container_width=True,
-                column_config={
-                    "ชื่อชั้น (Floor)": st.column_config.TextColumn(disabled=True),
-                    "ความสูงสะสม hx (ม.)": st.column_config.NumberColumn(disabled=True, format="%.2f"),
-                    "ระยะเคลื่อนตัวยืดหยุ่นจากโปรแกรม δe (ซม.)": st.column_config.NumberColumn("ระยะเคลื่อนตัวยืดหยุ่นจากโปรแกรม δe (ซม.)", min_value=0.0, format="%.3f", help="ใส่ค่า Displacement สะสมประจำชั้นในหน่วยเซนติเมตร")
-                }, key=f"drift_editor_{len(hx)}"
+            st.latex(
+                rf"C_{{s,max}} = \frac{{S_{{D1}}}}{{T_{{design}} \cdot (R/I_e)}} "
+                rf"= \frac{{{SD1:.4f}}}{{{T_design:.4f} \times {cs['RIe']:.3f}}} = {cs['cs_max']:.5f}"
             )
-
-            # คำนวณระยะเคลื่อนตัวจริงรวมพฤติกรรมเหนียวเหนือแรงพิกัด (Inelastic Displacement, δx)
-            delta_e = edited_drift["ระยะเคลื่อนตัวยืดหยุ่นจากโปรแกรม δe (ซม.)"].values.astype(float)
-            delta_x = (Cd * delta_e) / importance_factor
-
-            n = len(hx)
-            story_h, drift_ratio, status = np.zeros(n), np.zeros(n), []
-
-            for i in range(n):
-                # คำนวณหาความสูงชั้นสุทธิ และระยะเยื้องศูนย์สัมพัทธ์ระหว่างชั้น (Interstory Drift)
-                if i < n - 1:
-                    h_net = hx[i] - hx[i + 1]
-                    delta_diff = delta_x[i] - delta_x[i + 1]
-                else:
-                    h_net = hx[i]
-                    delta_diff = delta_x[i]
-
-                h_net = max(h_net, 0.001)  # ป้องกันข้อผิดพลาดในการหารด้วยศูนย์
-                story_h[i] = h_net
-                drift_ratio[i] = delta_diff / (h_net * 100.0) # แปลง h_net (เมตร) -> ซม. เพื่อหาสัดส่วนไร้มิติ
-                status.append("✅ PASS" if drift_ratio[i] <= drift_limit_factor else "❌ FAIL")
-
-            # ประกอบข้อมูลตารางสรุปเกณฑ์ความปลอดภัย
-            res_drift = edited_drift.copy()
-            res_drift["ความสูงชั้นสุทธิ h_net (ม.)"] = story_h
-            res_drift["ระยะเคลื่อนตัวจริงในสนาม δx (ซม.)"] = delta_x
-            res_drift["อัตราส่วนการโยกตัว Drift Ratio (%)"] = drift_ratio * 100  # แปลงเป็น % ให้อ่านและเทียบง่าย
-            res_drift["ค่าจำกัดสูงสุด Limit (%)"] = drift_limit_factor * 100
-            res_drift["ผลการประเมิน"] = status
-
-            st.markdown("### 🏆 ตารางประเมินเกณฑ์ความปลอดภัยการโยกตัวระหว่างชั้น (Story Drift Evaluation Table)")
-            st.dataframe(
-                res_drift.style.map(
-                    lambda v: 'background-color: #dcfce7; color: #166534; font-weight: bold;' if 'PASS' in str(v) else ('background-color: #fee2e2; color: #991b1b; font-weight: bold;' if 'FAIL' in str(v) else ''),
-                    subset=['ผลการประเมิน']
-                ).format({
-                    "ความสูงสะสม hx (ม.)": "{:.2f}", 
-                    "ระยะเคลื่อนตัวยืดหยุ่นจากโปรแกรม δe (ซม.)": "{:.3f}", 
-                    "ความสูงชั้นสุทธิ h_net (ม.)": "{:.2f}", 
-                    "ระยะเคลื่อนตัวจริงในสนาม δx (ซม.)": "{:.2f}", 
-                    "อัตราส่วนการโยกตัว Drift Ratio (%)": "{:.3f}%", 
-                    "ค่าจำกัดสูงสุด Limit (%)": "{:.2f}%"
-                }),
-                use_container_width=True, hide_index=True
+        with ce2:
+            st.latex(
+                rf"C_{{s,min}} = \max(0.01,\ 0.044 S_{{DS}} I_e) = {cs['cs_min']:.5f}"
             )
-            
-            # สรุปภาพรวมความปลอดภัยให้ชัดเจน
-            if "❌ FAIL" in status:
-                st.error("🛑 **ผลการตรวจสอบ:** โครงสร้างอาคารของคุณ **ไม่ผ่านเกณฑ์การโยกตัวระหว่างชั้น** ในบางชั้น! กรุณาเพิ่มขนาดของเสา (Column) หรือใส่กำแพงรับแรงเฉือน (Shear Wall) เพื่อเพิ่มความแข็งเกร็ง (Stiffness) ให้กับอาคาร")
-            else:
-                st.success("✅ **ผลการตรวจสอบ:** โครงสร้างอาคารมีความแข็งเกร็งเพียงพอ **ผ่านเกณฑ์มาตรฐานเรื่องระยะโยกตัว (Drift Limit)** ทุกชั้น สามารถใช้เป็นเอกสารแนบประกอบรายการคำนวณได้ทันที")
+            if S1 >= 0.6:
+                st.latex(
+                    rf"C_{{s,min,S1}} = \frac{{0.5 S_1}}{{R/I_e}} "
+                    rf"= \frac{{0.5 \times {S1:.3f}}}{{{cs['RIe']:.3f}}} = {cs['cs_min_s1']:.5f}"
+                )
+                st.caption("S1 ≥ 0.6 g → นำ Cs,min,S1 มาเปรียบเทียบด้วย")
 
-# ───────────────────────────────────────────────────────────────────────────
-# TAB 5: แผนผังกระบวนการและพารามิเตอร์ออกแบบอาคาร (Project Design Flowchart)
-# ───────────────────────────────────────────────────────────────────────────
-with tab5:
-    st.header("📋 แผนผังกระบวนการและพารามิเตอร์ออกแบบอาคาร (Project Design Flowchart)")
+    mc1, mc2, mc3 = st.columns(3)
+    mc1.metric("Cs ที่ควบคุม", f"{cs['cs_gov']:.5f}", cs['controls'])
+    mc2.metric("ρ (Redundancy)", f"{rho}", rho_note[:40] + "…" if len(rho_note) > 40 else rho_note)
+    mc3.metric("ρ × Cs (ใช้ออกแบบจริง)", f"{rho * cs['cs_gov']:.5f}")
 
-    # 1. ดักจับและเตรียมข้อมูล (Safe Variable Extraction) 
-    _Ta = f"{Ta:.3f}" if 'Ta' in locals() else "-"
-    _SDS = f"{SDS:.3f}" if 'SDS' in locals() else "-"
-    _SD1 = f"{SD1:.3f}" if 'SD1' in locals() else "-"
-    _sdc = sdc if 'sdc' in locals() else "-"
-    _R = f"{R_sys:.1f}" if 'R_sys' in locals() else "-"
-    _Ie = f"{importance_factor:.2f}" if 'importance_factor' in locals() else "-"
-    _Cd = f"{Cd:.1f}" if 'Cd' in locals() else "-"
-    _Cs = f"{Cs_gov:.4f}" if 'Cs_gov' in locals() else "-"
-    
-    _W = f"{total_W:,.2f}" if 'total_W' in locals() else "รอข้อมูล"
-    _V = f"{total_V:,.2f}" if 'total_V' in locals() else "รอข้อมูล"
-    _k = f"{k_exp:.3f}" if 'k_exp' in locals() else "-"
-    
-    limit_pct = (0.010 if importance_factor >= 1.5 else (0.015 if importance_factor >= 1.25 else 0.020)) * 100
-    
-    # ประเมินสถานะภาพรวมของอาคาร (Overall Status) - โทนสีสุขุมและเป็นทางการ
-    if 'status' in locals() and len(status) > 0:
-        overall_drift = "❌ ไม่ผ่านเกณฑ์ (FAIL)" if "❌ FAIL" in status else "✅ ผ่านเกณฑ์ (PASS)"
-        drift_color = "#991B1B" if "FAIL" in overall_drift else "#166534" # แดงเข้มเลือดหมู / เขียวเข้ม
-    else:
-        overall_drift = "รอผลการคำนวณ"
-        drift_color = "#475569" # เทากลาง
+    st.plotly_chart(plots.create_cs_bar(cs), use_container_width=True)
 
-    # 2. สร้าง Graphviz DOT โทนสี Premium Corporate (Modern UI Style)
-    pro_flowchart_dot = f"""
-    digraph ExecutiveSummary {{
-        rankdir=TB;
-        nodesep=0.8;
-        ranksep=0.6;
-        bgcolor="transparent";
-        splines=ortho;
-        pad=0.5;
+    # ── กระจายแรงประจำชั้น ────────────────────────────────────────────────────
+    st.subheader("ขั้นที่ 3 — กระจายแรงแผ่นดินไหวประจำชั้น")
+    st.markdown("กรอกข้อมูลชั้นอาคาร (เรียงจาก**ชั้นบนสุด**ลงล่าง)")
 
-        node [shape=plaintext, fontname="Helvetica, Arial, Tahoma, sans-serif", fontsize=12];
-        edge [color="#94A3B8", penwidth=2, arrowsize=0.7]; 
-
-        // 🎯 CARD 1: ข้อมูลพื้นที่และภัยแผ่นดินไหว
-        Card_Site [label=<
-            <TABLE BORDER="1" CELLBORDER="1" CELLSPACING="0" CELLPADDING="10" COLOR="#CBD5E1" STYLE="ROUNDED">
-                <TR><TD BGCOLOR="#0F172A" COLSPAN="2"><FONT COLOR="#FFFFFF" POINT-SIZE="13"><B>📍 1. ข้อมูลสถานที่และภัยแผ่นดินไหว</B></FONT></TD></TR>
-                <TR><TD ALIGN="LEFT" BGCOLOR="#F8FAFC"><FONT COLOR="#475569">ชั้นดิน (Site Class):</FONT></TD><TD BGCOLOR="#FFFFFF"><FONT COLOR="#0F172A"><B>{site_class}</B></FONT></TD></TR>
-                <TR><TD ALIGN="LEFT" BGCOLOR="#F8FAFC"><FONT COLOR="#475569">S<SUB>DS</SUB> / S<SUB>D1</SUB> (g):</FONT></TD><TD BGCOLOR="#FFFFFF"><FONT COLOR="#0F172A"><B>{_SDS} / {_SD1}</B></FONT></TD></TR>
-                <TR><TD ALIGN="LEFT" BGCOLOR="#F8FAFC"><FONT COLOR="#475569">ประเภทการออกแบบ (SDC):</FONT></TD><TD BGCOLOR="#FFFBEB"><FONT COLOR="#D97706"><B>ประเภท {_sdc}</B></FONT></TD></TR>
-            </TABLE>
-        >];
-
-        // 🎯 CARD 2: ระบบโครงสร้างอาคาร
-        Card_System [label=<
-            <TABLE BORDER="1" CELLBORDER="1" CELLSPACING="0" CELLPADDING="10" COLOR="#CBD5E1" STYLE="ROUNDED">
-                <TR><TD BGCOLOR="#0F172A" COLSPAN="4"><FONT COLOR="#FFFFFF" POINT-SIZE="13"><B>🏢 2. พารามิเตอร์ระบบโครงสร้าง</B></FONT></TD></TR>
-                <TR>
-                    <TD ALIGN="LEFT" BGCOLOR="#F8FAFC"><FONT COLOR="#475569">ตัวคูณสำคัญ (Ie):</FONT></TD><TD BGCOLOR="#FFFFFF"><FONT COLOR="#0F172A"><B>{_Ie}</B></FONT></TD>
-                    <TD ALIGN="LEFT" BGCOLOR="#F8FAFC"><FONT COLOR="#475569">ลดแรงออกแบบ (R):</FONT></TD><TD BGCOLOR="#FFFFFF"><FONT COLOR="#0F172A"><B>{_R}</B></FONT></TD>
-                </TR>
-                <TR>
-                    <TD ALIGN="LEFT" BGCOLOR="#F8FAFC"><FONT COLOR="#475569">คาบเวลาอาคาร (Ta):</FONT></TD><TD BGCOLOR="#FFFFFF"><FONT COLOR="#0F172A"><B>{_Ta} s.</B></FONT></TD>
-                    <TD ALIGN="LEFT" BGCOLOR="#F8FAFC"><FONT COLOR="#475569">ขยายระยะโยก (Cd):</FONT></TD><TD BGCOLOR="#FFFFFF"><FONT COLOR="#0F172A"><B>{_Cd}</B></FONT></TD>
-                </TR>
-            </TABLE>
-        >];
-
-        // 🎯 CARD 3: แรงเฉือนที่ฐาน
-        Card_BaseShear [label=<
-            <TABLE BORDER="1" CELLBORDER="1" CELLSPACING="0" CELLPADDING="10" COLOR="#CBD5E1" STYLE="ROUNDED">
-                <TR><TD BGCOLOR="#0F172A" COLSPAN="2"><FONT COLOR="#FFFFFF" POINT-SIZE="13"><B>⚖️ 3. แรงเฉือนที่ฐานอาคาร</B></FONT></TD></TR>
-                <TR><TD ALIGN="LEFT" BGCOLOR="#F8FAFC"><FONT COLOR="#475569">สัมประสิทธิ์การตอบสนอง (Cs):</FONT></TD><TD BGCOLOR="#FFFFFF"><FONT COLOR="#0F172A"><B>{_Cs}</B></FONT></TD></TR>
-                <TR><TD ALIGN="LEFT" BGCOLOR="#F8FAFC"><FONT COLOR="#475569">น้ำหนักประสิทธิผล (W):</FONT></TD><TD BGCOLOR="#FFFFFF"><FONT COLOR="#0F172A"><B>{_W} ตัน</B></FONT></TD></TR>
-                <TR><TD ALIGN="LEFT" BGCOLOR="#F8FAFC"><FONT COLOR="#475569">แรงเฉือนออกแบบ (V):</FONT></TD><TD BGCOLOR="#FEF2F2"><FONT COLOR="#B91C1C"><B>{_V} ตัน</B></FONT></TD></TR>
-            </TABLE>
-        >];
-
-        // 🎯 CARD 4: การกระจายแรง
-        Card_Dist [label=<
-            <TABLE BORDER="1" CELLBORDER="1" CELLSPACING="0" CELLPADDING="10" COLOR="#CBD5E1" STYLE="ROUNDED">
-                <TR><TD BGCOLOR="#0F172A" COLSPAN="2"><FONT COLOR="#FFFFFF" POINT-SIZE="13"><B>📉 4. การกระจายแรงแนวดิ่ง</B></FONT></TD></TR>
-                <TR><TD ALIGN="LEFT" BGCOLOR="#F8FAFC"><FONT COLOR="#475569">เลขชี้กำลัง (k):</FONT></TD><TD BGCOLOR="#FFFFFF"><FONT COLOR="#0F172A"><B>{_k}</B></FONT></TD></TR>
-                <TR><TD ALIGN="LEFT" BGCOLOR="#F8FAFC"><FONT COLOR="#475569">สมการควบคุม:</FONT></TD><TD BGCOLOR="#FFFFFF"><FONT COLOR="#0F172A">F<SUB>x</SUB> = C<SUB>vx</SUB> × V</FONT></TD></TR>
-            </TABLE>
-        >];
-
-        // 🎯 CARD 5: การตรวจสอบเสถียรภาพ
-        Card_Drift [label=<
-            <TABLE BORDER="1" CELLBORDER="1" CELLSPACING="0" CELLPADDING="10" COLOR="#CBD5E1" STYLE="ROUNDED">
-                <TR><TD BGCOLOR="#0F172A" COLSPAN="2"><FONT COLOR="#FFFFFF" POINT-SIZE="13"><B>🛡️ 5. การประเมินระยะโยกตัว</B></FONT></TD></TR>
-                <TR><TD ALIGN="LEFT" BGCOLOR="#F8FAFC"><FONT COLOR="#475569">เกณฑ์ขีดจำกัด (Limit):</FONT></TD><TD BGCOLOR="#FFFFFF"><FONT COLOR="#0F172A"><B>{limit_pct:.1f}%</B></FONT></TD></TR>
-                <TR><TD ALIGN="LEFT" BGCOLOR="#F8FAFC"><FONT COLOR="#475569">สถานะความปลอดภัย:</FONT></TD><TD BGCOLOR="{drift_color}"><FONT COLOR="#FFFFFF"><B>{overall_drift}</B></FONT></TD></TR>
-            </TABLE>
-        >];
-
-        // 🔗 เชื่อมโยง Flow
-        Card_Site -> Card_System;
-        Card_System -> Card_BaseShear;
-        Card_BaseShear -> Card_Dist;
-        Card_BaseShear -> Card_Drift;
-        
-        // จัดให้ Dist กับ Drift อยู่ระดับเดียวกัน (Rank)
-        {{ rank=same; Card_Dist; Card_Drift; }}
-    }}
-    """
-    
-    # 3. แสดงผล Flowchart
-    st.graphviz_chart(pro_flowchart_dot, use_container_width=True)
-
-# ───────────────────────────────────────────────────────────────────────────
-# TAB 6: แผนผังกระบวนการวิเคราะห์ทางพลศาสตร์ (Dynamic Analysis Flowchart)
-# ───────────────────────────────────────────────────────────────────────────
-with tab_dynamic:
-    st.header("📋 แผนผังพารามิเตอร์การวิเคราะห์ทางพลศาสตร์ (Dynamic Analysis Summary)")
-
-    # 1. ดักจับและเตรียมข้อมูลสำหรับการวิเคราะห์แบบ Response Spectrum
-    # (เปลี่ยนตัวแปรให้ตรงกับในโค้ดจริงของคุณ)
-    _SDS = f"{SDS:.3f}" if 'SDS' in locals() else "-"
-    _SD1 = f"{SD1:.3f}" if 'SD1' in locals() else "-"
-    _Ts = f"{Ts:.3f}" if 'Ts' in locals() else "-"
-    
-    _T1 = f"{T1:.3f}" if 'T1' in locals() else "รอข้อมูล"
-    _modes = f"{num_modes}" if 'num_modes' in locals() else "-"
-    _mass_part = f"{mass_part:.1f}" if 'mass_part' in locals() else "รอข้อมูล"
-    
-    _V_static = f"{V_static:,.2f}" if 'V_static' in locals() else "รอข้อมูล"
-    _V_dynamic = f"{V_dynamic:,.2f}" if 'V_dynamic' in locals() else "รอข้อมูล"
-    _scale_factor = f"{scale_factor:.3f}" if 'scale_factor' in locals() else "-"
-    
-    limit_pct = (0.010 if importance_factor >= 1.5 else (0.015 if importance_factor >= 1.25 else 0.020)) * 100 if 'importance_factor' in locals() else 1.5
-
-    # ประเมินสถานะการมีส่วนร่วมของมวล (Mass Participation >= 90%)
-    if 'mass_part' in locals():
-        mass_status_color = "#166534" if mass_part >= 90.0 else "#991B1B" # เขียว / แดง
-        mass_bg_color = "#F0FDF4" if mass_part >= 90.0 else "#FEF2F2"
-    else:
-        mass_status_color = "#0F172A"
-        mass_bg_color = "#FFFFFF"
-
-    # ประเมินสถานะระยะโยกตัว
-    if 'dynamic_status' in locals() and len(dynamic_status) > 0:
-        overall_drift = "❌ ไม่ผ่านเกณฑ์ (FAIL)" if "❌ FAIL" in dynamic_status else "✅ ผ่านเกณฑ์ (PASS)"
-        drift_color = "#991B1B" if "FAIL" in overall_drift else "#166534" 
-    else:
-        overall_drift = "รอผลการคำนวณ"
-        drift_color = "#475569"
-
-    # 2. สร้าง Graphviz DOT สำหรับ Dynamic Analysis (Modern UI Style)
-    dynamic_flowchart_dot = f"""
-    digraph DynamicSummary {{
-        rankdir=TB;
-        nodesep=0.8;
-        ranksep=0.6;
-        bgcolor="transparent";
-        splines=ortho;
-        pad=0.5;
-
-        node [shape=plaintext, fontname="Helvetica, Arial, Tahoma, sans-serif", fontsize=12];
-        edge [color="#94A3B8", penwidth=2, arrowsize=0.7]; 
-
-        // 🎯 CARD 1: สเปกตรัมตอบสนอง
-        Card_Spectrum [label=<
-            <TABLE BORDER="1" CELLBORDER="1" CELLSPACING="0" CELLPADDING="10" COLOR="#CBD5E1" STYLE="ROUNDED">
-                <TR><TD BGCOLOR="#0F172A" COLSPAN="4"><FONT COLOR="#FFFFFF" POINT-SIZE="13"><B>📈 1. พารามิเตอร์สเปกตรัมตอบสนอง (Response Spectrum)</B></FONT></TD></TR>
-                <TR>
-                    <TD ALIGN="LEFT" BGCOLOR="#F8FAFC"><FONT COLOR="#475569">S<SUB>DS</SUB> (g):</FONT></TD><TD BGCOLOR="#FFFFFF"><FONT COLOR="#0F172A"><B>{_SDS}</B></FONT></TD>
-                    <TD ALIGN="LEFT" BGCOLOR="#F8FAFC"><FONT COLOR="#475569">S<SUB>D1</SUB> (g):</FONT></TD><TD BGCOLOR="#FFFFFF"><FONT COLOR="#0F172A"><B>{_SD1}</B></FONT></TD>
-                </TR>
-                <TR>
-                    <TD ALIGN="LEFT" BGCOLOR="#F8FAFC"><FONT COLOR="#475569">คาบเวลา T<SUB>0</SUB> (s):</FONT></TD><TD BGCOLOR="#FFFFFF"><FONT COLOR="#0F172A"><B>{f"{0.2 * float(_Ts):.3f}" if _Ts != "-" else "-"}</B></FONT></TD>
-                    <TD ALIGN="LEFT" BGCOLOR="#F8FAFC"><FONT COLOR="#475569">คาบเวลา T<SUB>S</SUB> (s):</FONT></TD><TD BGCOLOR="#FFFFFF"><FONT COLOR="#0F172A"><B>{_Ts}</B></FONT></TD>
-                </TR>
-            </TABLE>
-        >];
-
-        // 🎯 CARD 2: การวิเคราะห์โหมดและการมีส่วนร่วมของมวล
-        Card_Modal [label=<
-            <TABLE BORDER="1" CELLBORDER="1" CELLSPACING="0" CELLPADDING="10" COLOR="#CBD5E1" STYLE="ROUNDED">
-                <TR><TD BGCOLOR="#0F172A" COLSPAN="2"><FONT COLOR="#FFFFFF" POINT-SIZE="13"><B>🏢 2. การวิเคราะห์โหมด (Modal Analysis)</B></FONT></TD></TR>
-                <TR><TD ALIGN="LEFT" BGCOLOR="#F8FAFC"><FONT COLOR="#475569">คาบเวลาโหมดที่ 1 (T<SUB>1</SUB>):</FONT></TD><TD BGCOLOR="#FFFFFF"><FONT COLOR="#0F172A"><B>{_T1} s.</B></FONT></TD></TR>
-                <TR><TD ALIGN="LEFT" BGCOLOR="#F8FAFC"><FONT COLOR="#475569">จำนวนโหมดที่วิเคราะห์ (N):</FONT></TD><TD BGCOLOR="#FFFFFF"><FONT COLOR="#0F172A"><B>{_modes} โหมด</B></FONT></TD></TR>
-                <TR><TD ALIGN="LEFT" BGCOLOR="#F8FAFC"><FONT COLOR="#475569">มวลที่เข้าร่วม (Mass Part. ≥ 90%):</FONT></TD><TD BGCOLOR="{mass_bg_color}"><FONT COLOR="{mass_status_color}"><B>{_mass_part}%</B></FONT></TD></TR>
-            </TABLE>
-        >];
-
-        // 🎯 CARD 3: การปรับแก้แรงเฉือนที่ฐาน
-        Card_Scaling [label=<
-            <TABLE BORDER="1" CELLBORDER="1" CELLSPACING="0" CELLPADDING="10" COLOR="#CBD5E1" STYLE="ROUNDED">
-                <TR><TD BGCOLOR="#0F172A" COLSPAN="2"><FONT COLOR="#FFFFFF" POINT-SIZE="13"><B>⚖️ 3. การปรับแก้แรงเฉือนที่ฐาน (Base Shear Scaling)</B></FONT></TD></TR>
-                <TR><TD ALIGN="LEFT" BGCOLOR="#F8FAFC"><FONT COLOR="#475569">แรงเฉือนสถิตยศาสตร์ (V<SUB>static</SUB>):</FONT></TD><TD BGCOLOR="#FFFFFF"><FONT COLOR="#0F172A"><B>{_V_static} ตัน</B></FONT></TD></TR>
-                <TR><TD ALIGN="LEFT" BGCOLOR="#F8FAFC"><FONT COLOR="#475569">แรงเฉือนพลศาสตร์ (V<SUB>dynamic</SUB>):</FONT></TD><TD BGCOLOR="#FFFFFF"><FONT COLOR="#0F172A"><B>{_V_dynamic} ตัน</B></FONT></TD></TR>
-                <TR><TD ALIGN="LEFT" BGCOLOR="#F8FAFC"><FONT COLOR="#475569">ตัวคูณปรับแก้ (Scale Factor):</FONT></TD><TD BGCOLOR="#FFFBEB"><FONT COLOR="#D97706"><B>{_scale_factor}</B></FONT></TD></TR>
-            </TABLE>
-        >];
-
-        // 🎯 CARD 4: การรวมผลตอบสนอง
-        Card_Effects [label=<
-            <TABLE BORDER="1" CELLBORDER="1" CELLSPACING="0" CELLPADDING="10" COLOR="#CBD5E1" STYLE="ROUNDED">
-                <TR><TD BGCOLOR="#0F172A" COLSPAN="2"><FONT COLOR="#FFFFFF" POINT-SIZE="13"><B>🔄 4. การรวมผลตอบสนอง (Combination Rules)</B></FONT></TD></TR>
-                <TR><TD ALIGN="LEFT" BGCOLOR="#F8FAFC"><FONT COLOR="#475569">ทิศทางร่วม (Modal Comb.):</FONT></TD><TD BGCOLOR="#FFFFFF"><FONT COLOR="#0F172A"><B>CQC</B></FONT></TD></TR>
-                <TR><TD ALIGN="LEFT" BGCOLOR="#F8FAFC"><FONT COLOR="#475569">แรงตั้งฉาก (Orthogonal):</FONT></TD><TD BGCOLOR="#FFFFFF"><FONT COLOR="#0F172A">100% / 30%</FONT></TD></TR>
-            </TABLE>
-        >];
-
-        // 🎯 CARD 5: การตรวจสอบเสถียรภาพ (Dynamic)
-        Card_Drift [label=<
-            <TABLE BORDER="1" CELLBORDER="1" CELLSPACING="0" CELLPADDING="10" COLOR="#CBD5E1" STYLE="ROUNDED">
-                <TR><TD BGCOLOR="#0F172A" COLSPAN="2"><FONT COLOR="#FFFFFF" POINT-SIZE="13"><B>🛡️ 5. การประเมินระยะโยกตัว (Dynamic Drift)</B></FONT></TD></TR>
-                <TR><TD ALIGN="LEFT" BGCOLOR="#F8FAFC"><FONT COLOR="#475569">เกณฑ์ขีดจำกัด (Limit):</FONT></TD><TD BGCOLOR="#FFFFFF"><FONT COLOR="#0F172A"><B>{limit_pct:.1f}%</B></FONT></TD></TR>
-                <TR><TD ALIGN="LEFT" BGCOLOR="#F8FAFC"><FONT COLOR="#475569">สถานะความปลอดภัย:</FONT></TD><TD BGCOLOR="{drift_color}"><FONT COLOR="#FFFFFF"><B>{overall_drift}</B></FONT></TD></TR>
-            </TABLE>
-        >];
-
-        // 🔗 เชื่อมโยง Flow
-        Card_Spectrum -> Card_Modal;
-        Card_Modal -> Card_Scaling;
-        Card_Scaling -> Card_Effects;
-        Card_Scaling -> Card_Drift;
-        
-        // จัดให้ Effects กับ Drift อยู่ระดับเดียวกัน (Rank)
-        {{ rank=same; Card_Effects; Card_Drift; }}
-    }}
-    """
-    
-    # 3. แสดงผล Flowchart
-    st.graphviz_chart(dynamic_flowchart_dot, use_container_width=True)
-
-# ───────────────────────────────────────────────────────────────────────────
-# TAB 7: หน้าคำนวณและปรับแก้ผลการวิเคราะห์พลศาสตร์ (Dynamic Analysis Calculation)
-# ───────────────────────────────────────────────────────────────────────────
-
-# ───────────────────────────────────────────────────────────────────────────
-# TAB 7: คำนวณ Dynamic และตรวจสอบเสถียรภาพขั้นสูง (Advanced Dynamic & Stability Review)
-# ───────────────────────────────────────────────────────────────────────────
-with tab_dynamic_calc:
-    st.header("⚙️ การวิเคราะห์พลศาสตร์และการประเมินเสถียรภาพขั้นสูง (Advanced Dynamic & Stability)")
-    st.markdown("""
-    เครื่องมือตรวจสอบและปรับแก้ผลลัพธ์จากซอฟต์แวร์วิเคราะห์โครงสร้าง 3 มิติ (ETABS/Midas) ร่วมกับการคำนวณเสถียรภาพอาคารรายชั้น 
-    ตามข้อกำหนดมาตรฐาน มยผ. และ ASCE 7
-    """)
-    st.divider()
-
-    # --- ส่วนที่ 1: ดักจับและเตรียมตัวคูณพื้นฐาน ---
-    _v_stat = total_V if 'total_V' in locals() else 100.0
-    _Cd = Cd if 'Cd' in locals() else 4.5
-    _Ie = importance_factor if 'importance_factor' in locals() else 1.0
-    limit_pct = (0.010 if _Ie >= 1.5 else (0.015 if _Ie >= 1.25 else 0.020)) * 100
-
-    # =======================================================================
-    # 🎯 SECTION 1: Base Shear Scaling (การปรับแก้แรงเฉือนที่ฐาน)
-    # =======================================================================
-    st.subheader("1. การปรับแก้แรงเฉือนที่ฐาน (Base Shear Scaling)")
-    
-    col_t1, col_t2 = st.columns(2)
-    with col_t1:
-        v_static_input = st.number_input("แรงเฉือนสถิตยศาสตร์เทียบเท่า (V_static) [ตัน]", value=float(_v_stat), step=10.0)
-    with col_t2:
-        target_ratio = st.radio("เกณฑ์แรงเฉือนเป้าหมาย (Target Base Shear Limit)", 
-                                options=["100% ของ V_static (มาตรฐาน มยผ. / ASCE 7-16)", "85% ของ V_static (กรณีอาคารสม่ำเสมอมาก)"],
-                                index=0)
-    
-    target_multiplier = 1.0 if "100%" in target_ratio else 0.85
-    v_target = v_static_input * target_multiplier
-    st.info(f"📊 **แรงเฉือนเป้าหมายขั้นต่ำที่ต้องใช้ในการออกแบบ (Target V): {v_target:,.2f} ตัน**")
-
-    # รับค่าแรงเฉือนพลศาสตร์แยกทิศทาง X / Y
-    col_x, col_y = st.columns(2)
-    with col_x:
-        st.markdown("**ทิศทาง X (X-Axis Analysis)**")
-        mass_part_x = st.number_input("มวลร่วมสะสม X (Mass Participation X) [%]", min_value=0.0, max_value=100.0, value=92.5, step=1.0)
-        v_dynamic_x = st.number_input("แรงเฉือนพลศาสตร์ X (V_dynamic X) [ตัน]", min_value=0.1, value=v_static_input*0.75, step=5.0)
-        
-        sf_x = max(1.0, v_target / v_dynamic_x)
-        if mass_part_x >= 90.0:
-            st.success(f"✅ Mass Participation X ({mass_part_x}%) ผ่านเกณฑ์ ≥ 90%")
-        else:
-            st.error(f"❌ Mass Participation X ({mass_part_x}%) ต่ำกว่าเกณฑ์! โปรดเพิ่มจำนวน Mode")
-        st.metric("Scale Factor X", f"{sf_x:.4f}")
-
-    with col_y:
-        st.markdown("**ทิศทาง Y (Y-Axis Analysis)**")
-        mass_part_y = st.number_input("มวลร่วมสะสม Y (Mass Participation Y) [%]", min_value=0.0, max_value=100.0, value=91.2, step=1.0)
-        v_dynamic_y = st.number_input("แรงเฉือนพลศาสตร์ Y (V_dynamic Y) [ตัน]", min_value=0.1, value=v_static_input*0.78, step=5.0)
-        
-        sf_y = max(1.0, v_target / v_dynamic_y)
-        if mass_part_y >= 90.0:
-            st.success(f"✅ Mass Participation Y ({mass_part_y}%) ผ่านเกณฑ์ ≥ 90%")
-        else:
-            st.error(f"❌ Mass Participation Y ({mass_part_y}%) ต่ำกว่าเกณฑ์! โปรดเพิ่มจำนวน Mode")
-        st.metric("Scale Factor Y", f"{sf_y:.4f}")
-
-    st.divider()
-
-    # =======================================================================
-    # 🎯 SECTION 2: Story Drift Verification (ระบบตรวจสอบ Drift รายชั้น)
-    # =======================================================================
-    st.subheader("2. การตรวจสอบระยะโยกตัวระหว่างชั้นราย floor (Story Drift Verification)")
-    st.markdown(f"""
-    สูตรคำนวณระยะโยกตัวออกแบบ: $\Delta_{{design}} = \\frac{{C_d \\times \Delta_{{elastic}}}}{{I_e}}$ 
-    | เกณฑ์ขีดจำกัดสูงสุดควบคุม: **{limit_pct:.2f}%** ของความสูงชั้น ($h_{{sx}}$)
-    """)
-
-    # สร้างข้อมูลจำลองเริ่มต้นเพื่อให้ผู้ใช้เข้ามาแก้ไขได้ง่าย (Default DataFrame)
-    default_drift_data = pd.DataFrame({
-        "ชื่อชั้น (Story)": ["Roof", "Floor 4", "Floor 3", "Floor 2", "Floor 1"],
-        "ความสูงชั้น h_sx (m)": [3.5, 3.5, 3.5, 3.5, 4.0],
-        "Elastic Drift X (mm)": [6.2, 8.5, 9.1, 7.4, 4.2],
-        "Elastic Drift Y (mm)": [5.8, 7.9, 8.4, 6.9, 3.8]
-    })
-
-    # แสดงตารางแบบ Interactive Data Editor เพื่อให้ผู้ใช้กรอกข้อมูลจาก ETABS ได้ทันที
+    default_stories = pd.DataFrame([
+        {"ชั้น": "ดาดฟ้า", "hx สะสม (ม.)": 14.0, "wx (ตัน)": 150.0},
+        {"ชั้น": "ชั้น 3",  "hx สะสม (ม.)": 10.5, "wx (ตัน)": 200.0},
+        {"ชั้น": "ชั้น 2",  "hx สะสม (ม.)":  7.0, "wx (ตัน)": 200.0},
+        {"ชั้น": "ชั้น 1",  "hx สะสม (ม.)":  3.5, "wx (ตัน)": 220.0},
+    ])
     edited_df = st.data_editor(
-        default_drift_data,
-        num_rows="dynamic",
-        use_container_width=True,
+        default_stories, num_rows="dynamic", use_container_width=True,
         column_config={
-            "ชื่อชั้น (Story)": st.column_config.TextColumn("ชื่อชั้น", help="กรอกชื่อชั้นจากแบบโครงสร้าง"),
-            "ความสูงชั้น h_sx (m)": st.column_config.NumberColumn("ความสูงชั้น (m)", min_value=0.5, format="%.2f"),
-            "Elastic Drift X (mm)": st.column_config.NumberColumn("Δ Elastic X (mm)", format="%.2f"),
-            "Elastic Drift Y (mm)": st.column_config.NumberColumn("Δ Elastic Y (mm)", format="%.2f"),
-        }
+            "ชั้น":           st.column_config.TextColumn("ชั้น", required=True),
+            "hx สะสม (ม.)":   st.column_config.NumberColumn("hx สะสม (ม.)", min_value=0.0, format="%.2f", required=True),
+            "wx (ตัน)":       st.column_config.NumberColumn("wx (ตัน)",      min_value=0.0, format="%.2f", required=True),
+        }, key="force_editor"
     )
 
-    # คำนวณผลลัพธ์ของตารางแบบ Real-time
-    if not edited_df.empty:
-        try:
-            h_mm = edited_df["ความสูงชั้น h_sx (m)"] * 1000
-            
-            # ทิศทาง X
-            edited_df["Design Drift X (mm)"] = (edited_df["Elastic Drift X (mm)"] * _Cd) / _Ie
-            edited_df["Drift Ratio X (%)"] = (edited_df["Design Drift X (mm)"] / h_mm) * 100
-            
-            # ทิศทาง Y
-            edited_df["Design Drift Y (mm)"] = (edited_df["Elastic Drift Y (mm)"] * _Cd) / _Ie
-            edited_df["Drift Ratio Y (%)"] = (edited_df["Design Drift Y (mm)"] / h_mm) * 100
-            
-            # ตรวจสอบสถานะเกณฑ์ควบคุม
-            edited_df["ผลตรวจสอบ X"] = edited_df["Drift Ratio X (%)"].apply(lambda x: "🟢 PASS" if x <= limit_pct else "🔴 FAIL")
-            edited_df["ผลตรวจสอบ Y"] = edited_df["Drift Ratio Y (%)"].apply(lambda x: "🟢 PASS" if x <= limit_pct else "🔴 FAIL")
-            
-            st.markdown("**📋 ผลการประเมินระยะโยกตัวควบคุม (Processed Design Drift Results):**")
-            # แสดงผลตารางที่คำนวณแล้วเสร็จ
-            st.dataframe(
-                edited_df[["ชื่อชั้น (Story)", "Drift Ratio X (%)", "ผลตรวจสอบ X", "Drift Ratio Y (%)", "ผลตรวจสอบ Y"]],
-                use_container_width=True,
-                column_config={
-                    "Drift Ratio X (%)": st.column_config.NumberColumn("Drift X (%)", format="%.3f"),
-                    "Drift Ratio Y (%)": st.column_config.NumberColumn("Drift Y (%)", format="%.3f"),
-                }
-            )
-        except Exception as e:
-            st.warning("⚠️ โปรดตรวจสอบการกรอกข้อมูลในตารางให้ครบถ้วนทุกช่อง")
-            
-    st.divider()
+    clean_df = edited_df.dropna(subset=["hx สะสม (ม.)", "wx (ตัน)"]).copy()
+    if clean_df.empty:
+        st.warning("กรุณากรอกข้อมูลชั้นอาคารอย่างน้อย 1 ชั้น")
+        st.stop()
 
-    # =======================================================================
-    # 🎯 SECTION 3: P-Delta Effects Screening (การประเมินผลกระทบอันดับสอง)
-    # =======================================================================
-    st.subheader("3. การประเมินผลกระทบอันดับที่สอง (P-Delta Preliminary Screening)")
-    st.markdown("""
-    ดัชนีเสถียรภาพควบคุม: $\\theta = \\frac{{P \\times \Delta_{{elastic}}}}{{V \\times h_{{sx}} \\times C_d}}$ 
-    * หาก $\\theta \le 0.10$: **ไม่ต้องคิดผลของ P-Delta** * หาก $0.10 < \\theta \le \\theta_{{max}}$: **ต้องคูณขยายแรงเพิ่มด้วยตัวคูณ $\\frac{{1}}{{1-\\theta}}$**
-    """)
-    
-    col_p1, col_p2, col_p3 = st.columns(3)
-    with col_p1:
-        p_load = st.number_input("น้ำหนักแนวดิ่งสะสมเหนือชั้นนั้น (P) [ตัน]", min_value=0.0, value=500.0, step=50.0)
-    with col_p2:
-        v_shear = st.number_input("แรงเฉือนในชั้นอาคารควบคุม (V) [ตัน]", min_value=0.1, value=45.0, step=5.0)
-    with col_p3:
-        h_floor = st.number_input("ความสูงของชั้นอาคาร h_sx [เมตร]", min_value=1.0, value=3.5, format="%.2f")
-        
-    elastic_drift_input = st.number_input("ระยะเคลื่อนตัวสัมพัทธ์จากการวิเคราะห์ยืดหยุ่น Δ_elastic [มิลลิเมตร]", min_value=0.0, value=8.0)
-    
-    # คำนวณหาค่า Theta (แปลงหน่วย Δ เป็นเมตรให้ตรงกับความสูง h)
-    drift_m = elastic_drift_input / 1000.0
-    theta = (p_load * drift_m) / (v_shear * h_floor * _Cd)
-    theta_max = min(0.5 / (_Cd * 1.0), 0.25) # สมมติ beta = 1.0 ตามเกณฑ์อนุรักษ์นิยม
-    
-    col_m1, col_m2 = st.columns(2)
-    with col_m1:
-        st.metric("ดัชนีเสถียรภาพที่คำนวณได้ (θ)", f"{theta:.4f}")
-    with col_m2:
-        st.metric("ขีดจำกัดสูงสุดยอมรับได้ (θ_max)", f"{theta_max:.4f}")
-        
-    if theta <= 0.10:
-        st.success(f"🟢 ค่า θ = {theta:.4f} ยู่น้อยกว่าหรือเท่ากับ 0.10: **โครงสร้างมีความปลอดภัยสูง ไม่ต้องพิจารณาผลกระทบจาก P-Delta**")
-    elif theta > 0.10 and theta <= theta_max:
-        amp_factor = 1.0 / (1.0 - theta)
-        st.warning(f"⚠️ ค่า θ = {theta:.4f} อยู่ระหว่าง 0.10 ถึง {theta_max:.4f}: **จำเป็นต้องนำผลกระทบ P-Delta มาพิจารณาออกแบบ โดยให้คูณขยายแรงและโมเมนต์เพิ่มขึ้นอีก {amp_factor:.3f} เท่า**")
-    else:
-        st.error("🔴 โครงสร้างไม่มีเสถียรภาพเพียงพอ (θ เกินค่า θ_max): **วิศวกรต้องทำการปรับขนาดขนาดเสาหรือระบบต้านทานแรงด้านข้างเพื่อเพิ่มความแข็งแรง (Stiffness) ของอาคารทันที**")
+    floor_names = clean_df["ชั้น"].astype(str).values
+    hx = clean_df["hx สะสม (ม.)"].astype(float).values
+    wx = clean_df["wx (ตัน)"].astype(float).values
 
-    st.divider()
+    total_W, total_V, k_exp, sum_whxk, cvx, Fx, Vx, Mx = calc.calculate_story_forces(
+        hx, wx, cs['cs_gov'], Ta
+    )
 
-    # =======================================================================
-    # 🎯 SECTION 4: Torsional Amplification (การบิดตัวของอาคาร)
-    # =======================================================================
-    st.subheader("4. ตัวคูณขยายการบิดตัวเนื่องจากความไม่สมมาตร (Torsional Amplification, A_x)")
-    st.markdown("สูตรคำนวณ: $A_x = \\left( \\frac{\\delta_{max}}{1.2 \\delta_{avg}} \\right)^2$ | เกณฑ์ควบคุม: $1.0 \\le A_x \\le 3.0$")
-    
-    col_t_max, col_t_avg = st.columns(2)
-    with col_t_max:
-        delta_max = st.number_input("ระยะเคลื่อนตัวสูงสุดที่ขอบอาคาร (δ_max) [mm]", min_value=0.1, value=12.0)
-    with col_t_avg:
-        delta_avg = st.number_input("ระยะเคลื่อนตัวเฉลี่ยของชั้นอาคาร (δ_avg) [mm]", min_value=0.1, value=9.5)
-        
-    if delta_max >= delta_avg:
-        ax_calc = (delta_max / (1.2 * delta_avg)) ** 2
-        ax_final = min(max(1.0, ax_calc), 3.0)
-        
-        st.metric("ตัวคูณขยายการบิดตัว (A_x)", f"{ax_final:.4f}")
-        if ax_final == 1.0:
-            st.info("💡 อาคารไม่มีปัญหาการบิดตัวรุนแรง (ความไม่สม่ำเสมอประเภทบิดตัวไม่เกินเกณฑ์ควบคุม)")
-        elif ax_final > 1.0 and ax_final < 3.0:
-            st.warning(f"⚠️ มีผลกระทบจากการบิดตัว: ต้องเพิ่มค่าความเยื้องศูนย์กลางโดยตั้งใจ (Accidental Eccentricity) ขึ้นอีก {ax_final:.3f} เท่าใน Load Case ของโปรแกรมวิเคราะห์โครงสร้าง")
-        else:
-            st.error("🔴 อาคารมีการบิดตัวรุนแรงเกินขีดจำกัดสูงสุด (A_x ถูกจำกัดที่ 3.0): แนะนำให้วิศวกรปรับย้ายตำแหน่งพิกัดของกำแพงรับแรงเฉือน (Shear Wall) เพื่อลดระยะเยื้องศูนย์หลัก (Center of Mass vs Center of Rigidity)")
-    else:
-        st.error("❌ ข้อผิดพลาด: ค่า δ_max ไม่สามารถน้อยกว่าค่า δ_avg ได้ โปรดตรวจสอบตัวเลขอีกครั้ง")
+    k_label = f"{k_exp:.3f}"
+    st.info(
+        f"**ค่า k = {k_label}** (Ta = {Ta:.3f} s) | "
+        f"W รวม = {total_W:,.2f} ตัน | "
+        f"V ที่ฐาน = {total_V:,.2f} ตัน | "
+        f"Cs = {cs['cs_gov']:.5f}"
+    )
+
+    res_df = pd.DataFrame({
+        "ชั้น": floor_names,
+        "hx (ม.)": hx,
+        "wx (ตัน)": wx,
+        "wx·hxᵏ": wx * (hx ** k_exp),
+        "Cvx": cvx,
+        "Fx (ตัน)": Fx,
+        "Vx (ตัน)": Vx,
+        "Mx (ตัน·ม.)": Mx,
+    })
+    st.dataframe(
+        res_df.style.format({
+            "hx (ม.)": "{:.2f}",
+            "wx (ตัน)": "{:,.2f}",
+            "wx·hxᵏ": "{:,.2f}",
+            "Cvx": "{:.5f}",
+            "Fx (ตัน)": "{:,.3f}",
+            "Vx (ตัน)": "{:,.3f}",
+            "Mx (ตัน·ม.)": "{:,.2f}",
+        }),
+        use_container_width=True, hide_index=True
+    )
+
+    st.plotly_chart(plots.create_force_plot(floor_names, Fx, Vx, Mx), use_container_width=True)
+
+    # เก็บข้อมูลสำหรับ Tab 5
+    st.session_state['floor_names'] = floor_names
+    st.session_state['hx']          = hx
+    st.session_state['wx']          = wx
+    st.session_state['Fx']          = Fx
+    st.session_state['Vx']          = Vx
+    st.session_state['Cd']          = Cd
+    st.session_state['computed']    = True
 
 
+# ╔══════════════════════════════════════════════════════════════════════════════
+# TAB 5 — Story Drift & P-Delta
+# ╔══════════════════════════════════════════════════════════════════════════════
+with tab5:
+    st.header("📏 ตรวจสอบ Story Drift และ P-Delta Stability")
+
+    if not st.session_state.get('computed', False):
+        st.info("💡 กรอกข้อมูลและคำนวณแรงใน Tab 4 ก่อน จากนั้นกลับมาที่นี่")
+        st.stop()
+
+    floor_names = st.session_state['floor_names']
+    hx          = st.session_state['hx']
+    wx          = st.session_state['wx']
+    Fx          = st.session_state['Fx']
+    Vx          = st.session_state['Vx']
+    Cd_val      = st.session_state['Cd']
+
+    drift_limit, drift_label = get_drift_limit(importance_factor)
+
+    # ── แสดงสมการและแผนภาพ ────────────────────────────────────────────────────
+    with st.container(border=True):
+        st.markdown(f"🎯 **เกณฑ์ขีดจำกัด Drift Ratio:** {drift_label}")
+        col_eq, col_pic = st.columns([1, 1])
+        with col_eq:
+            st.latex(r"\delta_x = \frac{C_d \cdot \delta_e}{I_e}")
+            st.latex(r"\text{Drift Ratio} = \frac{\delta_{x,top} - \delta_{x,bot}}{h_{sx}} \leq \text{Limit}")
+            st.latex(r"\theta = \frac{P_x \cdot \Delta_x}{V_x \cdot h_{sx} \cdot (C_d/I_e)}")
+        with col_pic:
+            st.plotly_chart(plots.create_drift_model_plot(), use_container_width=True,
+                            config={'displayModeBar': False})
+
+    # ── ตารางกรอก δe ──────────────────────────────────────────────────────────
+    st.markdown("##### กรอกระยะโยกพืดยืดหยุ่น δe จากโปรแกรมโครงสร้าง (ซม.)")
+    n = len(hx)
+    drift_input = pd.DataFrame({
+        "ชั้น":            floor_names,
+        "hx (ม.)":        hx,
+        "δe จากโปรแกรม (ซม.)": np.linspace(2.0, 0.3, n),
+    })
+    edited_drift = st.data_editor(
+        drift_input, num_rows="fixed", use_container_width=True,
+        column_config={
+            "ชั้น":     st.column_config.TextColumn(disabled=True),
+            "hx (ม.)": st.column_config.NumberColumn(disabled=True, format="%.2f"),
+            "δe จากโปรแกรม (ซม.)": st.column_config.NumberColumn(min_value=0.0, format="%.4f"),
+        }, key=f"drift_ed_{n}"
+    )
+
+    delta_e = edited_drift["δe จากโปรแกรม (ซม.)"].values.astype(float)
+    delta_x = (Cd_val * delta_e) / importance_factor   # ระยะโยกจริง (ซม.)
+
+    # คำนวณ Drift
+    story_h     = np.zeros(n)
+    drift_ratio = np.zeros(n)
+    status      = []
+
+    for i in range(n):
+        h_net    = (hx[i] - hx[i + 1]) * 100 if i < n - 1 else hx[i] * 100
+        h_net    = max(h_net, 1.0)
+        d_diff   = delta_x[i] - delta_x[i + 1] if i < n - 1 else delta_x[i]
+        story_h[i]     = h_net / 100      # เก็บเป็นเมตร
+        drift_ratio[i] = d_diff / h_net   # ratio (dimensionless)
+        status.append("✅ PASS" if drift_ratio[i] <= drift_limit else "❌ FAIL")
+
+    # P-Delta θ
+    Px = np.array([np.sum(wx[:i + 1]) for i in range(n)])   # น้ำหนักสะสมเหนือชั้น i
+    theta = calc.compute_stability_coeff(Px, delta_x, Vx, hx, Cd_val, importance_factor)
+    theta_status = [
+        "🛑 เกิน θ_max" if t > 0.25 else ("⚠️ ต้องพิจารณา P-Δ" if t > 0.10 else "✅ ปกติ")
+        for t in theta
+    ]
+
+    # ── ตาราง Drift ────────────────────────────────────────────────────────────
+    st.subheader("ผลการตรวจสอบ Story Drift")
+    res_drift = pd.DataFrame({
+        "ชั้น": floor_names,
+        "hsx (ม.)": story_h,
+        "δe (ซม.)": delta_e,
+        "δx = Cd·δe/Ie (ซม.)": delta_x,
+        "Drift Ratio (Δ/hsx)": drift_ratio,
+        "Limit": drift_limit,
+        "ผล": status,
+    })
+    st.dataframe(
+        res_drift.style.map(
+            lambda v: ('background-color:#dcfce7;color:#166534;font-weight:bold;'
+                       if 'PASS' in str(v)
+                       else ('background-color:#fee2e2;color:#991b1b;font-weight:bold;'
+                             if 'FAIL' in str(v) else '')),
+            subset=['ผล']
+        ).format({
+            "hsx (ม.)": "{:.2f}",
+            "δe (ซม.)": "{:.4f}",
+            "δx = Cd·δe/Ie (ซม.)": "{:.4f}",
+            "Drift Ratio (Δ/hsx)": "{:.5f}",
+            "Limit": "{:.4f}",
+        }),
+        use_container_width=True, hide_index=True
+    )
+
+    # ── ตาราง P-Delta ──────────────────────────────────────────────────────────
+    st.subheader("ผลการตรวจสอบ P-Delta Stability (θ)")
+    res_theta = pd.DataFrame({
+        "ชั้น": floor_names,
+        "Px สะสม (ตัน)": Px,
+        "Δx (ซม.)": [delta_x[i] - delta_x[i + 1] if i < n - 1 else delta_x[i] for i in range(n)],
+        "Vx (ตัน)": Vx,
+        "hsx (ม.)": story_h,
+        "θ": theta,
+        "ผล": theta_status,
+    })
+    st.dataframe(
+        res_theta.style.map(
+            lambda v: ('background-color:#fef9c3;color:#854d0e;font-weight:bold;'
+                       if '⚠️' in str(v)
+                       else ('background-color:#fee2e2;color:#991b1b;font-weight:bold;'
+                             if '🛑' in str(v) else '')),
+            subset=['ผล']
+        ).format({
+            "Px สะสม (ตัน)": "{:,.2f}",
+            "Δx (ซม.)": "{:.4f}",
+            "Vx (ตัน)": "{:,.3f}",
+            "hsx (ม.)": "{:.2f}",
+            "θ": "{:.5f}",
+        }),
+        use_container_width=True, hide_index=True
+    )
+    st.plotly_chart(plots.create_theta_plot(floor_names, theta), use_container_width=True)
+
+    if any("🛑" in s for s in theta_status):
+        st.error("🛑 มีชั้นที่ θ > θ_max — โครงสร้างอาจไม่มีเสถียรภาพ ต้องปรับปรุงหน้าตัดหรือระบบโครงสร้าง")
+    elif any("⚠️" in s for s in theta_status):
+        st.warning("⚠️ มีชั้นที่ 0.10 < θ ≤ 0.25 — ต้องขยายแรงภายในด้วยตัวคูณ 1/(1-θ) ตาม มยผ. 12.8.7")
