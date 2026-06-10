@@ -437,24 +437,10 @@ with tab3:
 # ----------------- TAB 4 -----------------
 with tab4:
     st.header("🏢 วิธีแรงสถิตเทียบเท่า (Equivalent Static Procedure)")
-    st.markdown("ระบบวิเคราะห์แรงแผ่นดินไหวและตรวจสอบความมั่นคงของโครงสร้างอาคารตามมาตรฐาน **มยผ. 1301/1302**")
+    st.markdown("ระบบคำนวณแรงแผ่นดินไหว และตรวจสอบความมั่นคงของโครงสร้าง (Story Drift Verification)")
 
-    # ส่วนอธิบายสัญลักษณ์แบบด่วน (Visual Legend Guide)
-    with st.expander("📖 เปิดคู่มือคำอธิบายสัญลักษณ์พารามิเตอร์ (Engineering Guide)", expanded=False):
-        col_lg1, col_lg2 = st.columns([1, 1])
-        with col_lg1:
-            st.markdown("""
-            * **$h_x$ (ความสูงสะสม):** ระยะดิ่งวัดจากระดับฐานราก/พื้นดิน (Base) ขึ้นไปจนถึงระดับพื้นชั้นนั้นๆ 
-            * **$w_x$ (น้ำหนักชั้น):** น้ำหนักบรรทุกคงที่ทั้งหมด (Dead Load) บวกกับน้ำหนักบรรทุกจรบางส่วนที่อาจเกิดขึ้นขณะแผ่นดินไหว (Live Load Allowance) ของชั้นนั้นๆ
-            """)
-        with col_lg2:
-            st.markdown("""
-            * **$\delta_e$ (Elastic Displacement):** ระยะที่อาคารโยกออกจากแนวเซนเตอร์ในแนวราบ ได้จากการรันโมเดลในโปรแกรมโครงสร้าง
-            * **Story Drift ($\Delta$):** ผลต่างของระยะโยกตัวระหว่างชั้นที่ติดกัน (ตึกต้องไม่โยกเป็นงูจนผนังหรือเสาหัก)
-            """)
-
-    # --- สเต็ป 1: พารามิเตอร์โครงสร้าง ---
-    st.subheader("⚡ สเต็ปที่ 1: กำหนดสัมประสิทธิ์โครงสร้าง")
+    # --- สเต็ป 1: พารามิเตอร์ระบบโครงสร้าง ---
+    st.subheader("⚡ สเต็ปที่ 1: กำหนดสัมประสิทธิ์โครงสร้างตามมาตรฐาน")
     
     structural_systems = {
         "โครงนำแรงดัด คสล. ความเหนียวสูง (SMF)": {"R": 8.0, "Omega": 3.0, "Cd": 5.5},
@@ -468,62 +454,67 @@ with tab4:
     R = structural_systems[selected_system]["R"]
     Omega0 = structural_systems[selected_system]["Omega"]
     Cd = structural_systems[selected_system]["Cd"]
-    Ie = importance_factor
+    Ie = importance_factor # ตัวแปรดึงจากหน้าแรกที่คุณมีอยู่แล้ว
 
-    # คำนวณ Cs ควบคุม
+    # คำนวณสัมประสิทธิ์แรงเฉือนที่ฐาน (Cs)
     Cs_compute = SDS / (R / Ie)
     Cs_max = SD1 / (Ta * (R / Ie)) if Ta > 0 else Cs_compute
-    Cs_min = 0.01
+    Cs_min = 0.01 # ค่าต่ำสุดตามมาตรฐาน มยผ.
     Cs_governing = max(Cs_min, min(Cs_compute, Cs_max))
 
-    col1, col2, col3, col4 = st.columns(4)
-    col1.metric("ลดแรงออกแบบ (R)", f"{R}", help="ทอนแรงแผ่นดินไหวจริงลงมาเพื่อประหยัดค่าก่อสร้าง โดยอาศัยความเหนียวของเหล็กเสริม")
-    col2.metric("เพิ่มกำลังเสาวิกฤต (Ω₀)", f"{Omega0}", help="ตัวคูณเผื่อกำลังสำหรับออกแบบชิ้นส่วนที่ไม่ยอมให้พังแบบเปราะ")
-    col3.metric("ขยายระยะโยก (Cd)", f"{Cd}", help="คูณขยายระยะโยกที่ได้จากโปรแกรม เพื่อจำลองระยะโยกจริงในสภาวะแตกหักพลาสติก")
-    col4.metric("สปส. แรงเฉือนที่ฐาน (Cs)", f"{Cs_governing:.4f}", delta="ใช้คำนวณ Base Shear")
+    # แสดงผลตัวแปรแบบ Dashboard
+    col_metric1, col_metric2, col_metric3, col_metric4 = st.columns(4)
+    col_metric1.metric("ตัวคูณลดแรงออกแบบ (R)", f"{R}")
+    col_metric2.metric("ตัวคูณเพิ่มกำลัง (Ω₀)", f"{Omega0}")
+    col_metric3.metric("ตัวคูณขยายระยะโยก (Cd)", f"{Cd}")
+    col_metric4.metric("สปส.แรงเฉือนที่ฐาน (Cs)", f"{Cs_governing:.4f}")
 
     st.divider()
 
-    # --- แบ่งหน้าต่างการทำงานเพื่อความเป็นมืออาชีพ ---
-    sub_tab1, sub_tab2 = st.tabs(["🏗️ 1. คำนวณแรงผลักประจำชั้น (Forces & Moments)", "📏 2. ตรวจสอบการโยกตัวพังทลาย (Story Drift Check)"])
+    # --- แบ่งหน้าต่างย่อย (Sub-Tabs) ---
+    sub_tab1, sub_tab2 = st.tabs(["🏗️ 1. กระจายแรงแผ่นดินไหว (Forces & Moments)", "📏 2. ตรวจสอบการโยกตัว (Story Drift Check)"])
 
     # ================= SUB TAB 1 =================
     with sub_tab1:
-        st.markdown("##### 📝 ป้อนข้อมูลมิติอาคารเพื่อหาแรงผลัก ($F_x$) ไปป้อนในโปรแกรมวิเคราะห์โครงสร้าง")
+        st.markdown("**กรอกข้อมูลความสูงและน้ำหนักของแต่ละชั้น (เรียงจากชั้นบนสุดลงล่างสุด)**")
         
         default_stories = pd.DataFrame([
-            {"ชื่อชั้น": "ชั้น 4 (ดาดฟ้า)", "ความสูงสะสม hx (ม.)": 14.0, "น้ำหนักรวมของชั้น wx (ตัน)": 150.0},
-            {"ชื่อชั้น": "ชั้น 3", "ความสูงสะสม hx (ม.)": 10.5, "น้ำหนักรวมของชั้น wx (ตัน)": 200.0},
-            {"ชื่อชั้น": "ชั้น 2", "ความสูงสะสม hx (ม.)": 7.0, "น้ำหนักรวมของชั้น wx (ตัน)": 200.0},
-            {"ชื่อชั้น": "ชั้น 1", "ความสูงสะสม hx (ม.)": 3.5, "น้ำหนักรวมของชั้น wx (ตัน)": 220.0},
+            {"ชื่อชั้น (Floor)": "ชั้น 4 (ดาดฟ้า)", "ความสูงสะสม hx (ม.)": 14.0, "น้ำหนักรวม wx (ตัน)": 150.0},
+            {"ชื่อชั้น (Floor)": "ชั้น 3", "ความสูงสะสม hx (ม.)": 10.5, "น้ำหนักรวม wx (ตัน)": 200.0},
+            {"ชื่อชั้น (Floor)": "ชั้น 2", "ความสูงสะสม hx (ม.)": 7.0, "น้ำหนักรวม wx (ตัน)": 200.0},
+            {"ชื่อชั้น (Floor)": "ชั้น 1", "ความสูงสะสม hx (ม.)": 3.5, "น้ำหนักรวม wx (ตัน)": 220.0},
         ])
 
         edited_df = st.data_editor(
             default_stories, num_rows="dynamic", use_container_width=True,
             column_config={
-                "ชื่อชั้น": st.column_config.TextColumn("ชื่อชั้น", required=True),
-                "ความสูงสะสม hx (ม.)": st.column_config.NumberColumn("ความสูงสะสม hx (ม.)", min_value=0.0, format="%.2f", help="ความสูงจากระดับพื้นดินขึ้นไปถึงพื้นชั้นนั้นๆ"),
-                "น้ำหนักรวมของชั้น wx (ตัน)": st.column_config.NumberColumn("น้ำหนักรวมของชั้น wx (ตัน)", min_value=0.0, format="%.2f", help="น้ำหนักโครงสร้าง + งานระบบ + นน.บรรจุจรตามสัดส่วน มยผ."),
+                "ความสูงสะสม hx (ม.)": st.column_config.NumberColumn(min_value=0.0, format="%.2f", required=True),
+                "น้ำหนักรวม wx (ตัน)": st.column_config.NumberColumn(min_value=0.0, format="%.2f", required=True),
             }, key="force_editor"
         )
 
-        if edited_df is not None and not edited_df.empty:
+        if not edited_df.empty:
             cleaned_df = edited_df.dropna(subset=[edited_df.columns[1], edited_df.columns[2]])
             if not cleaned_df.empty:
                 hx = cleaned_df.iloc[:, 1].astype(float).values
                 wx = cleaned_df.iloc[:, 2].astype(float).values
                 floor_names = cleaned_df.iloc[:, 0].astype(str).values
                 
+                # --- การคำนวณหลัก ---
                 total_W = np.sum(wx)
                 total_V = Cs_governing * total_W
+                
+                # ตัวแปร k (Exponent) สำหรับคำนวณแรง
                 k_exp = 1.0 if Ta <= 0.5 else (2.0 if Ta >= 2.5 else 1.0 + (Ta - 0.5) / 2.0)
                 
                 w_hx_k = wx * (hx ** k_exp)
-                cvx = w_hx_k / np.sum(w_hx_k) if np.sum(w_hx_k) > 0 else np.zeros_like(w_hx_k)
-                Fx = cvx * total_V
-                Vx = np.cumsum(Fx)
+                sum_w_hx_k = np.sum(w_hx_k)
+                cvx = w_hx_k / sum_w_hx_k if sum_w_hx_k > 0 else np.zeros_like(w_hx_k)
                 
-                # คำนวณโมเมนต์พลิกคว่ำสะสม (Overturning Moment)
+                Fx = cvx * total_V
+                Vx = np.cumsum(Fx) # แรงเฉือนสะสม
+                
+                # โมเมนต์พลิกคว่ำสะสม (Mx)
                 Mx = np.zeros_like(Fx)
                 for i in range(len(hx)):
                     moment = 0
@@ -531,116 +522,146 @@ with tab4:
                         moment += Fx[j] * max(0, hx[j] - hx[i])
                     Mx[i] = moment
 
+                # รวมผลลัพธ์ใส่ DataFrame
                 res_force = cleaned_df.copy()
-                res_force["แรงผลักประจำชั้น Fx (ตัน)"] = Fx
+                res_force["ตัวคูณ Cvx"] = cvx
+                res_force["แรงผลัก Fx (ตัน)"] = Fx
                 res_force["แรงเฉือนสะสม Vx (ตัน)"] = Vx
                 res_force["โมเมนต์พลิกคว่ำ Mx (ตัน-ม.)"] = Mx
                 
-                st.markdown("##### 📋 ตารางผลการคำนวณแรง (ก๊อปปี้ค่าในช่อง Fx ไปใส่ ETABS)")
-                st.dataframe(res_force.style.format(precision=2), use_container_width=True)
+                st.markdown("### 📊 ตารางสรุปแรงออกแบบประจำชั้น")
+                st.dataframe(res_force.style.format({
+                    "ความสูงสะสม hx (ม.)": "{:.2f}",
+                    "น้ำหนักรวม wx (ตัน)": "{:,.2f}",
+                    "ตัวคูณ Cvx": "{:.4f}",
+                    "แรงผลัก Fx (ตัน)": "{:,.2f}",
+                    "แรงเฉือนสะสม Vx (ตัน)": "{:,.2f}",
+                    "โมเมนต์พลิกคว่ำ Mx (ตัน-ม.)": "{:,.2f}"
+                }), use_container_width=True)
 
-                # พล็อตกราฟ 3 Subplots แบบสากลนิยม
+                # พล็อตกราฟ 3 แกน แบบมืออาชีพ (Fx, Vx, Mx)
                 from plotly.subplots import make_subplots
                 import plotly.graph_objects as go
                 
-                fig = make_subplots(rows=1, cols=3, shared_yaxes=True, horizontal_spacing=0.06,
-                                    subplot_titles=("แรงผลักผลักชั้น (Fx)", "แรงเฉือนรวมสะสม (Vx)", "โมเมนต์พลิกคว่ำ (Mx)"))
+                fig_force = make_subplots(rows=1, cols=3, shared_yaxes=True, horizontal_spacing=0.06,
+                                    subplot_titles=("แรงผลักแผ่นดินไหว (Fx)", "แรงเฉือนสะสม (Vx)", "โมเมนต์พลิกคว่ำ (Mx)"))
                 
-                fig.add_trace(go.Bar(y=floor_names, x=Fx, orientation='h', marker_color='#3b82f6', name="Fx"), row=1, col=1)
-                fig.add_trace(go.Bar(y=floor_names, x=Vx, orientation='h', marker_color='#10b981', name="Vx"), row=1, col=2)
-                fig.add_trace(go.Bar(y=floor_names, x=Mx, orientation='h', marker_color='#f59e0b', name="Mx"), row=1, col=3)
+                fig_force.add_trace(go.Bar(y=floor_names, x=Fx, orientation='h', marker_color='#3b82f6', name="Fx"), row=1, col=1)
+                fig_force.add_trace(go.Bar(y=floor_names, x=Vx, orientation='h', marker_color='#10b981', name="Vx"), row=1, col=2)
+                fig_force.add_trace(go.Bar(y=floor_names, x=Mx, orientation='h', marker_color='#f59e0b', name="Mx"), row=1, col=3)
                 
-                fig.update_layout(height=400, showlegend=False, template="plotly_white", margin=dict(l=20, r=20, t=40, b=20))
-                fig.update_yaxes(autorange="reversed", title_text="ชั้นอาคาร", row=1, col=1)
-                st.plotly_chart(fig, use_container_width=True)
+                fig_force.update_layout(height=450, showlegend=False, template="plotly_white", margin=dict(l=10, r=10, t=40, b=20))
+                fig_force.update_yaxes(autorange="reversed", title_text="ชั้นอาคาร", row=1, col=1)
+                st.plotly_chart(fig_force, use_container_width=True)
 
     # ================= SUB TAB 2 =================
     with sub_tab2:
-        st.markdown("##### 📏 ตรวจสอบระยะดริฟต์โครงสร้าง (Story Drift Safety Verification)")
+        st.markdown("**ป้อนค่าการโยกตัว (Displacement) จากโมเดลโครงสร้าง เพื่อตรวจสอบเสถียรภาพ**")
         
-        # ปรับ Limit ตามประเภทความสำคัญอาคารโดยอัตโนมัติ
+        # ปรับค่า Allowable Drift Limit อัตโนมัติ
         if Ie >= 1.5:
             drift_limit_factor = 0.010
-            cat_text = "อาคารความสำคัญสูงมาก (เช่น รพ./ศูนย์กู้ภัย) ลิมิตเข้มงวดดริฟต์ต้องไม่เกิน 1.0% ของความสูงชั้น"
+            cat_text = "อาคารความสำคัญสูงมาก (Limit = 1.0%)"
         elif Ie >= 1.25:
             drift_limit_factor = 0.015
-            cat_text = "อาคารความสำคัญสูง (เช่น โรงเรียน/ห้างสรรพสินค้า) ลิมิตดริฟต์ต้องไม่เกิน 1.5% ของความสูงชั้น"
+            cat_text = "อาคารความสำคัญสูง (Limit = 1.5%)"
         else:
             drift_limit_factor = 0.020
-            cat_text = "อาคารทั่วไป (เช่น สำนักงาน/ที่พักอาศัย) ลิมิตดริฟต์ต้องไม่เกิน 2.0% ของความสูงชั้น"
-        # 🎨 ส่วนเพิ่มใหม่ระดับโปร: วาดกราฟิกจำลองการโยกตัวของตึกด้วย Plotly (Interactive Structural Diagram)
-        with st.expander("❓ ทำไมต้องจำกัดระยะโยกตัว (Story Drift)? และตัวแปรแต่ละตัวคืออะไร คลิกเพื่อดูภาพประกอบ", expanded=True):
-            st.markdown(f"**🎯 เกณฑ์ควบคุมที่แอปใช้ในโปรเจกต์นี้:** {cat_text}")
-            st.markdown("อาคารที่โยกตัวมากเกินไป น้ำหนักตึกที่กดทับลงมาจะทำให้เสาที่เอียงอยู่เกิดโมเมนต์ดัดเพิ่มขึ้นมหาศาล (P-Delta Effect) จนเสาหัก หรือทำให้กระจกและผนังแตกหล่นลงมาทำอันตรายได้")
-            
-            col_pic1, col_pic2 = st.columns([1, 1.2])
-            with col_pic1:
-                st.info("💡 **คอนเซปต์การคำนวณ Story Drift:**\n\n"
-                        "วิศวกรไม่ได้ดูแค่ว่าดาดฟ้าโยกไปไกลแค่ไหน แต่ต้องคุม **'ความต่าง'** ของระยะโยกระหว่างชั้นบนและชั้นล่างที่ติดกัน")
-                st.latex(r"\text{อัตราส่วนดริฟต์} = \frac{\Delta}{h} = \frac{\delta_{top} - \delta_{bot}}{h}")
+            cat_text = "อาคารทั่วไป (Limit = 2.0%)"
+
+        # กล่องคู่มือพร้อมกราฟิก (ซ่อนได้เพื่อให้หน้าจอคลีน)
+        with st.expander("📖 คู่มือ: คำอธิบายสัญลักษณ์และเกณฑ์การคำนวณ Story Drift", expanded=False):
+            st.info(f"🎯 **เกณฑ์ที่ใช้ควบคุม:** {cat_text} ของความสูงชั้น")
+            col_g1, col_g2 = st.columns([1, 1.2])
+            with col_g1:
                 st.markdown("""
-                **คำอธิบายสัญลักษณ์:**
-                * **$W_x$**: น้ำหนักที่รวมศูนย์ ณ จุด CG ของชั้นนั้นๆ
-                * **$F_x$**: แรงผลักแผ่นดินไหวที่กระทำต่อชั้น
+                * **$W_x$**: น้ำหนักประจำชั้น
+                * **$F_x$**: แรงผลักแผ่นดินไหว
                 * **$h_x$**: ความสูงสะสมจากฐานราก
-                * **$\delta_e$**: ระยะโยกตัวพืดหยุ่นเทียบกับฐานราก
-                * **$\Delta$**: ระยะดริฟต์ (ความต่างของการโยกตัวระหว่างชั้น)
+                * **$\delta_e$**: ระยะโยกพืดหยุ่นจากโมเดล
+                * **$\Delta$**: ระยะดริฟต์สัมพัทธ์ระหว่างชั้น
                 """)
-            
-            with col_pic2:
-                # --- สร้างโค้ดวาดรูปจำลองอาคาร (Structural Displacement Model) ---
+                st.latex(r"\text{ดริฟต์เรโช} = \frac{\Delta}{h} = \frac{\delta_{top} - \delta_{bot}}{h_{net}}")
+            with col_g2:
                 import plotly.graph_objects as go
                 fig_model = go.Figure()
-                
-                # พิกัดตึกเดิม (กว้าง 3 หน่วย, สูงชั้นละ 3 หน่วย)
-                x_orig = [0, 3] 
-                y_orig = [0, 3, 6, 9] 
-                # พิกัดเสียรูป (สมมติระยะโยกเพื่อให้เห็นภาพ)
+                x_orig, y_orig = [0, 3], [0, 3, 6, 9] 
                 dx = [0, 0.6, 1.5, 2.2] 
                 
-                # 1. วาดตึกสภาพเดิม (สีเทาเส้นประ)
-                for i in range(4): # คาน
-                    fig_model.add_trace(go.Scatter(x=x_orig, y=[y_orig[i], y_orig[i]], mode='lines', line=dict(color='#d1d5db', width=3, dash='dash'), hoverinfo='skip'))
-                for x in x_orig: # เสา
-                    fig_model.add_trace(go.Scatter(x=[x, x], y=[0, 9], mode='lines', line=dict(color='#d1d5db', width=3, dash='dash'), hoverinfo='skip'))
-                    
-                # 2. วาดตึกขณะแผ่นดินไหว (สีน้ำเงิน)
+                # วาดตึกเดิม (เส้นประเทา)
+                for i in range(4): fig_model.add_trace(go.Scatter(x=x_orig, y=[y_orig[i], y_orig[i]], mode='lines', line=dict(color='#d1d5db', width=2, dash='dash')))
+                for x in x_orig: fig_model.add_trace(go.Scatter(x=[x, x], y=[0, 9], mode='lines', line=dict(color='#d1d5db', width=2, dash='dash')))
+                # วาดตึกโยก (เส้นน้ำเงิน)
                 for i in range(1, 4):
-                    # คาน
-                    fig_model.add_trace(go.Scatter(x=[x_orig[0]+dx[i], x_orig[1]+dx[i]], y=[y_orig[i], y_orig[i]], mode='lines+markers', line=dict(color='#3b82f6', width=5), marker=dict(size=8, color='#1e3a8a'), name=f'ชั้น {i}', hoverinfo='skip'))
-                    # เสาซ้ายและขวา
-                    fig_model.add_trace(go.Scatter(x=[x_orig[0]+dx[i-1], x_orig[0]+dx[i]], y=[y_orig[i-1], y_orig[i]], mode='lines', line=dict(color='#3b82f6', width=5), showlegend=False, hoverinfo='skip'))
-                    fig_model.add_trace(go.Scatter(x=[x_orig[1]+dx[i-1], x_orig[1]+dx[i]], y=[y_orig[i-1], y_orig[i]], mode='lines', line=dict(color='#3b82f6', width=5), showlegend=False, hoverinfo='skip'))
+                    fig_model.add_trace(go.Scatter(x=[x_orig[0]+dx[i], x_orig[1]+dx[i]], y=[y_orig[i], y_orig[i]], mode='lines+markers', line=dict(color='#3b82f6', width=4), marker=dict(size=6, color='#1e3a8a')))
+                    fig_model.add_trace(go.Scatter(x=[x_orig[0]+dx[i-1], x_orig[0]+dx[i]], y=[y_orig[i-1], y_orig[i]], mode='lines', line=dict(color='#3b82f6', width=4)))
+                    fig_model.add_trace(go.Scatter(x=[x_orig[1]+dx[i-1], x_orig[1]+dx[i]], y=[y_orig[i-1], y_orig[i]], mode='lines', line=dict(color='#3b82f6', width=4)))
                 
-                # 3. ใส่ลูกศรและข้อความประกอบ (Annotations)
-                # แรง Fx
-                fig_model.add_annotation(x=dx[3], y=9, ax=-1.5, ay=9, xref='x', yref='y', axref='x', ayref='y', showarrow=True, arrowhead=2, arrowsize=1.5, arrowwidth=2, arrowcolor='#ef4444')
-                fig_model.add_annotation(x=-0.5, y=9.4, text="<b>Fx</b>", showarrow=False, font=dict(color='#ef4444', size=14))
-                
-                # น้ำหนัก Wx
-                fig_model.add_annotation(x=(x_orig[0]+x_orig[1])/2 + dx[3], y=9.5, text="<b>Wx</b>", showarrow=False, font=dict(color='#059669', size=14))
-                
-                # ความสูง hx
-                fig_model.add_annotation(x=-1.5, y=9, ax=-1.5, ay=0, xref='x', yref='y', axref='x', ayref='y', showarrow=True, arrowhead=2, arrowwidth=1.5, arrowcolor='#d97706')
-                fig_model.add_annotation(x=-1.5, y=0, ax=-1.5, ay=9, xref='x', yref='y', axref='x', ayref='y', showarrow=True, arrowhead=2, arrowwidth=1.5, arrowcolor='#d97706')
-                fig_model.add_annotation(x=-2.0, y=4.5, text="<b>hx</b>", showarrow=False, font=dict(color='#d97706', size=14))
-                
-                # ระยะโยกสะสม delta_e
-                fig_model.add_annotation(x=x_orig[1], y=9, ax=x_orig[1]+dx[3], ay=9, xref='x', yref='y', axref='x', ayref='y', showarrow=True, arrowhead=2, arrowwidth=1.5, arrowcolor='#9333ea')
-                fig_model.add_annotation(x=x_orig[1] + dx[3]/2, y=9.5, text="<b>δe</b>", showarrow=False, font=dict(color='#9333ea', size=14))
-                
-                # ดริฟต์ (Drift) ระหว่างชั้น
-                fig_model.add_annotation(x=x_orig[1]+dx[2], y=7.5, ax=x_orig[1]+dx[3], ay=7.5, xref='x', yref='y', axref='x', ayref='y', showarrow=True, arrowhead=2, arrowwidth=2, arrowcolor='#db2777')
-                fig_model.add_annotation(x=x_orig[1] + (dx[2]+dx[3])/2 + 0.5, y=7.5, text="<b>Δ (Drift)</b>", showarrow=False, font=dict(color='#db2777', size=14))
+                # สัญลักษณ์
+                fig_model.add_annotation(x=dx[3], y=9, ax=-1.5, ay=9, xref='x', yref='y', axref='x', ayref='y', showarrow=True, arrowhead=2, arrowcolor='#ef4444')
+                fig_model.add_annotation(x=-0.5, y=9.5, text="<b>Fx</b>", showarrow=False, font=dict(color='#ef4444'))
+                fig_model.add_annotation(x=x_orig[1], y=9, ax=x_orig[1]+dx[3], ay=9, xref='x', yref='y', axref='x', ayref='y', showarrow=True, arrowhead=2, arrowcolor='#9333ea')
+                fig_model.add_annotation(x=x_orig[1] + dx[3]/2, y=9.6, text="<b>δe</b>", showarrow=False, font=dict(color='#9333ea'))
+                fig_model.add_annotation(x=x_orig[1]+dx[2], y=7.5, ax=x_orig[1]+dx[3], ay=7.5, xref='x', yref='y', axref='x', ayref='y', showarrow=True, arrowhead=2, arrowcolor='#db2777')
+                fig_model.add_annotation(x=x_orig[1] + (dx[2]+dx[3])/2 + 0.5, y=7.5, text="<b>Δ (Drift)</b>", showarrow=False, font=dict(color='#db2777'))
 
-                # ซ่อนเส้น Grid และปรับความสวยงาม
-                fig_model.update_layout(
-                    xaxis=dict(visible=False, range=[-3, 7]),
-                    yaxis=dict(visible=False, range=[-1, 10]),
-                    plot_bgcolor='rgba(0,0,0,0)',
-                    paper_bgcolor='rgba(0,0,0,0)',
-                    margin=dict(l=0, r=0, t=10, b=0),
-                    height=300,
-                    showlegend=False
-                )
+                fig_model.update_layout(xaxis=dict(visible=False, range=[-2, 6]), yaxis=dict(visible=False, range=[-1, 10]), plot_bgcolor='rgba(0,0,0,0)', margin=dict(l=0, r=0, t=0, b=0), height=250, showlegend=False)
                 st.plotly_chart(fig_model, use_container_width=True, config={'displayModeBar': False})
+
+        # เช็กความพร้อมข้อมูลจาก Sub-tab 1
+        if 'floor_names' in locals() and len(floor_names) > 0:
+            drift_df = pd.DataFrame({
+                "ชื่อชั้น": floor_names,
+                "ความสูงสะสม hx (ม.)": hx,
+                "ระยะโยกพืดหยุ่นจากโปรแกรม δe (ซม.)": np.linspace(2.0, 0.4, len(hx)) 
+            })
+            
+            edited_drift = st.data_editor(
+                drift_df, num_rows="fixed", use_container_width=True,
+                column_config={
+                    "ชื่อชั้น": st.column_config.TextColumn(disabled=True),
+                    "ความสูงสะสม hx (ม.)": st.column_config.NumberColumn(disabled=True, format="%.2f"),
+                    "ระยะโยกพืดหยุ่นจากโปรแกรม δe (ซม.)": st.column_config.NumberColumn(min_value=0.0, format="%.3f")
+                }, key="drift_editor"
+            )
+            
+            delta_e = edited_drift["ระยะโยกพืดหยุ่นจากโปรแกรม δe (ซม.)"].values
+            delta_x = (Cd * delta_e) / Ie # Inelastic Displacement
+            
+            story_h = np.zeros_like(hx)
+            drift_ratio = np.zeros_like(hx)
+            status = []
+            
+            for i in range(len(hx)):
+                h_net = hx[i] if i == len(hx)-1 else hx[i] - hx[i+1]
+                story_h[i] = h_net
+                
+                delta_diff = delta_x[i] if i == len(hx)-1 else delta_x[i] - delta_x[i+1]
+                drift_ratio[i] = delta_diff / (h_net * 100) # (ซม./ซม.)
+                
+                if drift_ratio[i] <= drift_limit_factor:
+                    status.append("✅ PASS")
+                else:
+                    status.append("❌ FAIL")
+                    
+            res_drift = edited_drift.copy()
+            res_drift["ความสูงชั้น (ม.)"] = story_h
+            res_drift["ระยะโยกจริง δx (ซม.)"] = delta_x
+            res_drift["Drift Ratio (Δ/h)"] = drift_ratio
+            res_drift["Limit (Max)"] = drift_limit_factor
+            res_drift["Status"] = status
+            
+            st.markdown("### 🏆 สรุปผลการตรวจสอบ (Pass/Fail)")
+            st.dataframe(res_drift.style.map(
+                lambda x: 'background-color: #dcfce7; color: #166534; font-weight: bold;' if 'PASS' in str(x) 
+                else ('background-color: #fee2e2; color: #991b1b; font-weight: bold;' if 'FAIL' in str(x) else ''),
+                subset=['Status']
+            ).format({
+                "ความสูงชั้น (ม.)": "{:.2f}",
+                "ระยะโยกจริง δx (ซม.)": "{:.2f}", 
+                "Drift Ratio (Δ/h)": "{:.4f}",
+                "Limit (Max)": "{:.4f}"
+            }), use_container_width=True)
+            
+        else:
+            st.warning("⚠️ กรุณากรอกข้อมูลในแท็บ '1. กระจายแรงแผ่นดินไหว' ให้เสร็จสิ้นก่อนครับ")
