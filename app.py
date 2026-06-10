@@ -537,34 +537,85 @@ with tab4:
             else:
                 st.success("✅ **ผลการตรวจสอบ:** โครงสร้างอาคารมีความแข็งเกร็งเพียงพอ **ผ่านเกณฑ์มาตรฐานเรื่องระยะโยกตัว (Drift Limit)** ทุกชั้น สามารถใช้เป็นเอกสารแนบประกอบรายการคำนวณได้ทันที")
 
+
 # ───────────────────────────────────────────────────────────────────────────
-# TAB 5: แผนผังสรุปความคิด (Mind Map) วิธีแรงสถิตเทียบเท่า
+# TAB 5: แผนผังพลวัตสรุปโครงการ (Dynamic Executive Mind Map)
 # ───────────────────────────────────────────────────────────────────────────
 with tab5:
-    st.header("🧠 แผนผังสรุปภาพรวม (Mind Map): วิธีแรงสถิตเทียบเท่า")
+    st.header("🧠 แผนผังพลวัตสรุปโครงการ (Dynamic Executive Mind Map)")
     st.markdown("""
-    แผนผังนี้แสดงขั้นตอนและกระบวนการคิดทั้งหมดของการวิเคราะห์โครงสร้างด้วย **วิธีแรงสถิตเทียบเท่า (Equivalent Static Procedure)** เพื่อช่วยให้วิศวกรสามารถทบทวนขั้นตอนตามมาตรฐาน มยผ. 1301/1302-61 ได้อย่างรวดเร็ว
+    **ยกระดับจากแผนผังทฤษฎีทั่วไป สู่แดชบอร์ดที่ดึงค่าจริงของอาคารคุณมาแสดงผลแบบ Real-time!**
+    วิศวกรสามารถบันทึกแผนผังด้านล่างนี้ เพื่อนำไปใช้เป็น **บทสรุปผู้บริหาร (Executive Summary)** ในรายงานรายการคำนวณ ช่วยให้คณะกรรมการตรวจแบบเข้าใจพฤติกรรมรวมของโครงสร้างได้อย่างรวดเร็ว
     """)
     
-    # ดึงค่ากราฟ DOT จาก plots.py มาแสดงผล
-    st.graphviz_chart(plots.get_esp_mindmap_dot(), use_container_width=True)
+    # 1. ดักจับตัวแปรจาก Tab 4 (พร้อมระบบ Fallback กรณีผู้ใช้เพิ่งเปิดแอปและยังไม่กรอกตาราง)
+    w_val = f"{total_W:,.2f} ตัน" if 'total_W' in locals() else "รอข้อมูลมิติชั้น"
+    v_val = f"{total_V:,.2f} ตัน" if 'total_V' in locals() else "รอคำนวณจากตาราง"
+    k_val = f"{k_exp:.3f}" if 'k_exp' in locals() else "รอข้อมูล"
     
+    # ดึงขีดจำกัดการโยกตัวที่คำนวณไว้แล้ว
+    limit_pct = 0.010 if importance_factor >= 1.5 else (0.015 if importance_factor >= 1.25 else 0.020)
+    
+    # 2. สร้าง Graphviz DOT ที่ฝังค่าของโครงการนี้เข้าไปโดยตรง (Dynamic Injection)
+    dynamic_mindmap_dot = f"""
+    digraph DynamicMindMap {{
+        rankdir=LR;
+        bgcolor="transparent";
+        splines=ortho;
+        nodesep=0.3;
+        ranksep=0.6;
+        
+        // กำหนดสไตล์โหนดและเส้นระดับพรีเมียม
+        node [fontname="Tahoma", shape=box, style="rounded,filled", fontcolor="white", penwidth=0];
+        edge [fontname="Tahoma", color="#94a3b8", penwidth=2, arrowsize=0.8];
+
+        // 🎯 โหนดศูนย์กลาง (Project Core)
+        core [label="วิธีแรงสถิตเทียบเท่า (ESP)\\nสำหรับอาคารประเภท SDC: {sdc}", fillcolor="#1e3a8a", fontsize=15, shape=note, margin=0.3];
+
+        // 🌿 กิ่งหลัก Level 1 (จัดกลุ่มกระบวนการ)
+        step1 [label="1. พารามิเตอร์อาคาร", fillcolor="#b45309", fontsize=13];
+        step2 [label="2. แรงเฉือนที่ฐาน (V)", fillcolor="#be123c", fontsize=13];
+        step3 [label="3. กระจายแรงแนวดิ่ง", fillcolor="#6d28d9", fontsize=13];
+        step4 [label="4. เสถียรภาพการโยกตัว", fillcolor="#0f766e", fontsize=13];
+
+        core -> step1;
+        core -> step2;
+        core -> step3;
+        core -> step4;
+
+        // 🍃 กิ่งย่อย Level 2 (ฉีดตัวแปรจริงที่คำนวณได้เข้าไปในกราฟ)
+        node [fillcolor="#f8fafc", fontcolor="#1e293b", penwidth=1.5, color="#cbd5e1", fontsize=11];
+        
+        // กระบวนการที่ 1
+        s1_1 [label="น้ำหนักอาคาร (W)\\n= {w_val}"];
+        s1_2 [label="คาบเวลา (Ta)\\n= {Ta:.3f} วินาที"];
+        s1_3 [label="สัมประสิทธิ์ (Cs)\\n= {Cs_gov:.4f}"];
+        step1 -> {{s1_1 s1_2 s1_3}};
+
+        // กระบวนการที่ 2
+        s2_1 [label="สมการ V = Cs × W\\nแรงเฉือนรวม = {v_val}"];
+        step2 -> s2_1;
+
+        // กระบวนการที่ 3
+        s3_1 [label="เลขชี้กำลัง (k)\\n= {k_val}"];
+        s3_2 [label="สมการกระจายแรง\\nFx = Cvx × V"];
+        step3 -> {{s3_1 s3_2}};
+
+        // กระบวนการที่ 4
+        s4_1 [label="ขยายระยะโยก (δx)\\n= (Cd × δe) / {importance_factor}"];
+        s4_2 [label="ขีดจำกัดโครงการ\\n= {limit_pct*100:.1f}% ของความสูงชั้น"];
+        step4 -> {{s4_1 s4_2}};
+    }}
+    """
+    
+    # 3. เรนเดอร์กราฟขึ้นหน้าจอ
+    st.graphviz_chart(dynamic_mindmap_dot, use_container_width=True)
+    
+    # เพิ่มลูกเล่น Metric Card สรุปด่วนใต้กราฟ
     st.divider()
-    
-    # เพิ่มตารางคำศัพท์และสมการสั้นๆ เพื่อให้ข้อมูลสมบูรณ์
-    st.subheader("📚 อภิธานศัพท์และสัญลักษณ์ (Glossary)")
-    col_g1, col_g2 = st.columns(2)
-    with col_g1:
-        st.markdown("""
-        * **$W$ (Effective Seismic Weight):** น้ำหนักรวมของโครงสร้างที่นำมาคิดแรงแผ่นดินไหว
-        * **$T_a$ (Approximate Fundamental Period):** คาบเวลาธรรมชาติโดยประมาณ
-        * **$C_s$ (Seismic Response Coefficient):** สัมประสิทธิ์การตอบสนองแผ่นดินไหว
-        * **$V$ (Base Shear):** แรงเฉือนที่ฐานอาคารทั้งหมด
-        """)
-    with col_g2:
-        st.markdown("""
-        * **$F_x$ (Story Force):** แรงผลักแผ่นดินไหวที่กระทำในแต่ละชั้น
-        * **$C_{vx}$ (Vertical Distribution Factor):** ตัวคูณแจกแจงแรงตามแนวดิ่ง
-        * **$\delta_x$ (Design Story Drift):** ระยะโยกตัวจริงที่ใช้ในการออกแบบ
-        * **$C_d$ (Deflection Amplification Factor):** ตัวคูณขยายระยะโยกตัว
-        """)
+    st.caption("⚡ **สรุปค่าพารามิเตอร์หลักของโครงการ (Quick Metrics)**")
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("คาบเวลาธรรมชาติ (Ta)", f"{Ta:.3f} s")
+    c2.metric("ค่าสัมประสิทธิ์ (Cs)", f"{Cs_gov:.4f}")
+    c3.metric("ประเภทการออกแบบ", f"SDC {sdc}")
+    c4.metric("ขีดจำกัดการโยกตัว", f"{limit_pct*100:.1f}%")
