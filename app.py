@@ -130,14 +130,14 @@ else:
 # จัดการแท็บการแสดงผลหลัก (Main Tabs Display)
 # ==========================================
 st.markdown("---")
-# เปลี่ยนจากเดิมที่มี 4 แท็บ เป็น 5 แท็บดังนี้:
-tab1, tab2, tab3, tab4, tab5 = st.tabs([
+# เพิ่ม tab_dynamic เข้าไปด้านซ้าย เพื่อให้ครบ 6 ตัวพอดีกับชื่อด้านขวา
+tab1, tab2, tab3, tab4, tab5, tab_dynamic = st.tabs([
     "📋 1. พารามิเตอร์ออกแบบ", 
     "🚦 2. ประเภท SDC", 
     "📈 3. Response Spectrum", 
     "🏢 4. Equivalent Static",
     "🧠 5. สรุป Mind Map (ESP)",
-    "6: Dynamic Analysis"  # เพิ่มแท็บที่ 5 ตรงนี้
+    "📊 6. Dynamic Analysis"  
 ])
 
 # ─────────────────────────── TAB 1 ───────────────────────────
