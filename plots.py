@@ -243,3 +243,54 @@ def create_drift_model_plot() -> go.Figure:
         margin=dict(l=0, r=0, t=0, b=0), height=200, showlegend=False
     )
     return fig_model
+    
+def get_esp_mindmap_dot() -> str:
+    """ส่งกลับ Graphviz DOT String สำหรับแสดงผล Mind Map สรุปวิธีแรงสถิตเทียบเท่า"""
+    return """
+    digraph ESP_MindMap {
+        rankdir=LR; // จัดเรียงจากซ้ายไปขวา
+        bgcolor="transparent";
+        splines=true;
+        node [fontname="Tahoma, Arial, sans-serif", shape=box, style="rounded,filled", fontcolor="white", penwidth=0];
+        edge [fontname="Tahoma, Arial, sans-serif", color="#94a3b8", penwidth=2, arrowsize=0.8];
+
+        // 🎯 โหนดศูนย์กลาง (Central Node)
+        core [label="วิธีแรงสถิตเทียบเท่า\\n(Equivalent Static Procedure)", fillcolor="#1e3a8a", fontsize=16, shape=ellipse, penwidth=3, color="#60a5fa"];
+
+        // 🌿 กิ่งหลัก Level 1 (Main Branches)
+        cond [label="1. เงื่อนไขการใช้งาน\\n(Applicability)", fillcolor="#047857"];
+        param [label="2. พารามิเตอร์พื้นฐาน\\n(Base Parameters)", fillcolor="#b45309"];
+        base_shear [label="3. แรงเฉือนที่ฐาน\\n(Base Shear)", fillcolor="#be123c"];
+        dist [label="4. การกระจายแรงแนวดิ่ง\\n(Vertical Distribution)", fillcolor="#6d28d9"];
+        drift [label="5. ตรวจสอบเสถียรภาพ\\n(Stability & Drift)", fillcolor="#0f766e"];
+
+        core -> {cond param base_shear dist drift};
+
+        // 🍃 กิ่งย่อย Level 2 - เงื่อนไข
+        node [fillcolor="#f8fafc", fontcolor="#334155", penwidth=1.5, color="#cbd5e1"];
+        c1 [label="อาคารรูปทรงสม่ำเสมอ\\n(Regular Structures)"];
+        c2 [label="ความสูงไม่เกินเกณฑ์ข้อกำหนด\\n(อ้างอิงตาม SDC)"];
+        cond -> c1; cond -> c2;
+
+        // 🍃 กิ่งย่อย Level 2 - พารามิเตอร์
+        p1 [label="น้ำหนักประสิทธิผล (W)\\n(DL + %LL ที่กฎหมายระบุ)"];
+        p2 [label="คาบเวลาธรรมชาติ (Ta)\\n(อ้างอิงความสูงและระบบ)"];
+        p3 [label="สัมประสิทธิ์ผลตอบสนอง (Cs)\\n(ฟังก์ชันของ SDS, SD1, R, Ie)"];
+        param -> p1; param -> p2; param -> p3;
+
+        // 🍃 กิ่งย่อย Level 2 - แรงเฉือน
+        b1 [label="สมการหลัก\\nV = Cs × W"];
+        b2 [label="ตรวจสอบขีดจำกัด Cs\\n(ห้ามเกิน Cs_max และไม่ต่ำกว่า Cs_min)"];
+        base_shear -> b1; base_shear -> b2;
+
+        // 🍃 กิ่งย่อย Level 2 - การกระจายแรง
+        d1 [label="แรงด้านข้างประจำชั้น (Fx)\\nFx = Cvx × V"];
+        d2 [label="ตัวคูณกระจายแรง (k)\\nk=1 (T ≤ 0.5s)\\nk=2 (T ≥ 2.5s)"];
+        dist -> d1; dist -> d2;
+
+        // 🍃 กิ่งย่อย Level 2 - เสถียรภาพ
+        s1 [label="การโยกตัวระหว่างชั้น (Story Drift)\\nδx = (Cd × δe) / Ie"];
+        s2 [label="ขีดจำกัดการโยกตัว (Limit)\\n1.0%, 1.5%, 2.0% ตาม Ie"];
+        drift -> s1; drift -> s2;
+    }
+    """
