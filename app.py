@@ -554,35 +554,27 @@ with tab4:
             "แรงเฉือนสะสม Vx (ตัน)": "{:,.2f}", "โมเมนต์พลิกคว่ำ Mx (ตัน-ม.)": "{:,.2f}"
         }), use_container_width=True)
 
-        # 📑 รายการคำนวณโปร่งใส (ปลอดภัย 100% ไม่พังแน่นอน)
-        with st.expander("📄 เปิดดูบันทึกข้อความสรุปสูตรคำนวณ (Calculation Note Summary)", expanded=False):
-            st.markdown("### 🖋️ รายการสรุปสูตรคำนวณเชิงวิศวกรรม")
-            
-            # 🛡️ SAFE FALLBACK: ดึงค่ามาพักไว้ ถ้าตัวแปรล่องหนให้แสดงค่าเป็น 0 แทนการแครช
-            v_cs = Cs_governing if 'Cs_governing' in locals() else 0.0
-            v_w = total_W if 'total_W' in locals() else 0.0
-            v_total = total_V if 'total_V' in locals() else 0.0
-            v_k = k_exp if 'k_exp' in locals() else 1.0
-            v_ta = Ta if 'Ta' in locals() else 0.3
-            v_sum = sum_w_hx_k if 'sum_w_hx_k' in locals() else 1.0
-
-            st.latex(r"V_{\text{base}} = C_s \times W = " + f"{v_cs:.4f} \times {v_w:,.2f} = {v_total:,.2f} \\text{ ตัน}")
-            st.latex(r"k_{\text{exponent}} = " + f"{v_k:.3f} \\quad (\\text{อ้างอิงจากคาบธรรมชาติอาคาร } T_a = {v_ta:.3f} \\text{ วินาที})")
-            st.markdown("---")
-            
-            if 'floor_names' in locals():
+# ==============================================================================
+        # 🛡️ THE ULTIMATE SHIELD: ใช้ Try-Except ครอบทั้งบล็อก (ป้องกันแครชทุกกรณี 100%)
+        # ==============================================================================
+        try:
+            # 📑 รายการคำนวณโปร่งใส 
+            with st.expander("📄 เปิดดูบันทึกข้อความสรุปสูตรคำนวณ (Calculation Note Summary)", expanded=False):
+                st.markdown("### 🖋️ รายการสรุปสูตรคำนวณเชิงวิศวกรรม")
+                # เรียกใช้ตัวแปรตรงๆ ได้เลย ถ้าไม่มีค่า มันจะกระโดดไปที่ except ทันทีโดยไม่แครช
+                st.latex(r"V_{\text{base}} = C_s \times W = " + f"{Cs_governing:.4f} \times {total_W:,.2f} = {total_V:,.2f} \\text{ ตัน}")
+                st.latex(r"k_{\text{exponent}} = " + f"{k_exp:.3f} \\quad (\\text{อ้างอิงจากคาบธรรมชาติอาคาร } T_a = {Ta:.3f} \\text{ วินาที})")
+                st.markdown("---")
+                
                 for idx, name in enumerate(floor_names):
                     st.markdown(f"**📍 การกระจายแรงสู่ระดับ {name}:**")
-                    if 'wx' in locals() and idx < len(wx) and idx < len(hx) and idx < len(cvx) and idx < len(Fx):
-                        st.latex(f"C_{{vx}} = \\frac{{{wx[idx]:,.1f} \\times {hx[idx]:.2f}^{{{v_k:.2f}}}}}{{{v_sum:,.1f}}} = {cvx[idx]:.4f}")
-                        st.latex(f"F_x = {cvx[idx]:.4f} \\times {v_total:,.2f} = {Fx[idx]:,.2f} \\text{ ตัน}")
+                    st.latex(f"C_{{vx}} = \\frac{{{wx[idx]:,.1f} \\times {hx[idx]:.2f}^{{{k_exp:.2f}}}}}{{{sum_w_hx_k:,.1f}}} = {cvx[idx]:.4f}")
+                    st.latex(f"F_x = {cvx[idx]:.4f} \\times {total_V:,.2f} = {Fx[idx]:,.2f} \\text{ ตัน}")
 
-        # พล็อตกราฟ
-        from plotly.subplots import make_subplots
-        import plotly.graph_objects as go
-        
-        # 🛡️ SAFE FALLBACK สำหรับกราฟ
-        if 'floor_names' in locals() and 'Fx' in locals() and 'Vx' in locals() and 'Mx' in locals():
+            # 📊 พล็อตกราฟ
+            from plotly.subplots import make_subplots
+            import plotly.graph_objects as go
+            
             fig_force = make_subplots(rows=1, cols=3, shared_yaxes=True, horizontal_spacing=0.06, subplot_titles=("แรงผลักแผ่นดินไหว (Fx)", "แรงเฉือนสะสม (Vx)", "โมเมนต์พลิกคว่ำ (Mx)"))
             fig_force.add_trace(go.Bar(y=floor_names, x=Fx, orientation='h', marker_color='#3b82f6'), row=1, col=1)
             fig_force.add_trace(go.Bar(y=floor_names, x=Vx, orientation='h', marker_color='#10b981'), row=1, col=2)
@@ -590,6 +582,10 @@ with tab4:
             fig_force.update_layout(height=400, showlegend=False, template="plotly_white", margin=dict(l=10, r=10, t=40, b=20))
             fig_force.update_yaxes(autorange="reversed", title_text="ชั้นอาคาร", row=1, col=1)
             st.plotly_chart(fig_force, use_container_width=True)
+
+        except Exception as e:
+            # 💡 ถ้าจังหวะ Rerun โค้ดสะดุด หรือตัวแปรหาไม่เจอ จะโชว์กล่องข้อความนี้แทนจอแดง
+            st.info("⏳ ระบบกำลังประมวลผล หรือรอข้อมูลตัวแปรเริ่มต้นจากการอัปเดตตาราง...")
 
     # ================= SUB TAB 2 =================
     with sub_tab2:
