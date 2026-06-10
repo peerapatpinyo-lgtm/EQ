@@ -537,18 +537,17 @@ with tab4:
             else:
                 st.success("✅ **ผลการตรวจสอบ:** โครงสร้างอาคารมีความแข็งเกร็งเพียงพอ **ผ่านเกณฑ์มาตรฐานเรื่องระยะโยกตัว (Drift Limit)** ทุกชั้น สามารถใช้เป็นเอกสารแนบประกอบรายการคำนวณได้ทันที")
 
-
 # ───────────────────────────────────────────────────────────────────────────
-# TAB 5: แผนผังโฟลว์ชาร์ตสรุปโครงการ (Executive Flowchart Dashboard)
+# TAB 5: แผนผังโฟลว์ชาร์ตสรุปโครงการ (Executive Flowchart Dashboard - Pro Edition)
 # ───────────────────────────────────────────────────────────────────────────
 with tab5:
     st.header("📋 แผนผังโฟลว์ชาร์ตสรุปโครงการ (Executive Summary Flowchart)")
     st.markdown("""
-    หน้าต่างนี้ออกแบบมาเพื่อใช้เป็น **"บทสรุปผู้บริหาร (Executive Summary)"** สำหรับแนบหน้าแรกของรายการคำนวณ (Calculation Report) 
-    ระบบจะทำการดึงข้อมูลพารามิเตอร์ที่คำนวณได้จริงทั้งหมดของอาคารหลังนี้ มาจัดเรียงในรูปแบบ Data Cards อย่างเป็นระบบและตรวจสอบย้อนกลับได้ง่าย
+    หน้าต่างนี้ออกแบบมาเพื่อใช้เป็น **"บทสรุปผู้บริหาร (Executive Summary)"** โทนสีมาตรฐานวิศวกรรม 
+    เหมาะสำหรับพิมพ์แนบเป็นหน้าแรกของรายการคำนวณ (Calculation Report) เพื่อให้ผู้ตรวจแบบสามารถตรวจสอบพารามิเตอร์ทั้งหมดได้อย่างเป็นระบบ
     """)
 
-    # 1. ดักจับและเตรียมข้อมูล (Safe Variable Extraction) ป้องกัน Error กรณีเพิ่งเปิดแอป
+    # 1. ดักจับและเตรียมข้อมูล (Safe Variable Extraction) 
     _Ta = f"{Ta:.3f}" if 'Ta' in locals() else "-"
     _SDS = f"{SDS:.3f}" if 'SDS' in locals() else "-"
     _SD1 = f"{SD1:.3f}" if 'SD1' in locals() else "-"
@@ -564,76 +563,76 @@ with tab5:
     
     limit_pct = (0.010 if importance_factor >= 1.5 else (0.015 if importance_factor >= 1.25 else 0.020)) * 100
     
-    # ประเมินสถานะภาพรวมของอาคาร (Overall Status)
+    # ประเมินสถานะภาพรวมของอาคาร (Overall Status) - ปรับโทนสีให้ดูสุขุมและเป็นทางการขึ้น
     if 'status' in locals() and len(status) > 0:
         overall_drift = "❌ ไม่ผ่านเกณฑ์ (FAIL)" if "❌ FAIL" in status else "✅ ผ่านเกณฑ์ (PASS)"
-        drift_color = "#ef4444" if "FAIL" in overall_drift else "#10b981"
+        drift_color = "#991B1B" if "FAIL" in overall_drift else "#166534" # แดงเข้มเลือดหมู / เขียวเข้ม
     else:
         overall_drift = "รอผลการคำนวณ"
-        drift_color = "#64748b"
+        drift_color = "#475569" # เทากลาง
 
-    # 2. สร้าง Graphviz DOT ด้วยเทคนิค HTML-Like Tables เพื่อให้เป็น Data Cards ระดับโปร
+    # 2. สร้าง Graphviz DOT โทนสี Corporate Engineering (Slate / Navy / Steel)
     pro_flowchart_dot = f"""
     digraph ExecutiveSummary {{
         rankdir=TB;
         nodesep=0.6;
-        ranksep=0.5;
+        ranksep=0.4;
         bgcolor="transparent";
         splines=ortho;
 
         node [shape=none, fontname="Tahoma, Arial", margin=0];
-        edge [color="#475569", penwidth=2, arrowsize=0.8];
+        edge [color="#64748B", penwidth=1.5, arrowsize=0.8]; // สีเส้นเชื่อมเป็นเทาเหล็ก
 
         // 🎯 CARD 1: ข้อมูลพื้นที่และภัยแผ่นดินไหว
         Card_Site [label=<
-            <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="6" COLOR="#cbd5e1">
-                <TR><TD BGCOLOR="#1e293b" COLSPAN="2"><FONT COLOR="white"><B>1. ข้อมูลสถานที่และภัยแผ่นดินไหว (Site &amp; Hazard)</B></FONT></TD></TR>
-                <TR><TD ALIGN="LEFT" BGCOLOR="#f8fafc">ชั้นดิน (Site Class):</TD><TD BGCOLOR="#ffffff"><B>{site_class}</B></TD></TR>
-                <TR><TD ALIGN="LEFT" BGCOLOR="#f8fafc">S<SUB>DS</SUB> / S<SUB>D1</SUB> (g):</TD><TD BGCOLOR="#ffffff"><B>{_SDS} / {_SD1}</B></TD></TR>
-                <TR><TD ALIGN="LEFT" BGCOLOR="#f8fafc">ประเภทการออกแบบ (SDC):</TD><TD BGCOLOR="#fef3c7"><FONT COLOR="#b45309"><B>ประเภท {_sdc}</B></FONT></TD></TR>
+            <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="6" COLOR="#94A3B8">
+                <TR><TD BGCOLOR="#1E293B" COLSPAN="2"><FONT COLOR="#F8FAFC"><B>1. ข้อมูลสถานที่และภัยแผ่นดินไหว (Site &amp; Hazard)</B></FONT></TD></TR>
+                <TR><TD ALIGN="LEFT" BGCOLOR="#F1F5F9"><FONT COLOR="#334155">ชั้นดิน (Site Class):</FONT></TD><TD BGCOLOR="#FFFFFF"><B>{site_class}</B></TD></TR>
+                <TR><TD ALIGN="LEFT" BGCOLOR="#F1F5F9"><FONT COLOR="#334155">S<SUB>DS</SUB> / S<SUB>D1</SUB> (g):</FONT></TD><TD BGCOLOR="#FFFFFF"><B>{_SDS} / {_SD1}</B></TD></TR>
+                <TR><TD ALIGN="LEFT" BGCOLOR="#F1F5F9"><FONT COLOR="#334155">ประเภทการออกแบบ (SDC):</FONT></TD><TD BGCOLOR="#FFFFFF"><FONT COLOR="#B45309"><B>ประเภท {_sdc}</B></FONT></TD></TR>
             </TABLE>
         >];
 
         // 🎯 CARD 2: ระบบโครงสร้างอาคาร
         Card_System [label=<
-            <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="6" COLOR="#cbd5e1">
-                <TR><TD BGCOLOR="#0ea5e9" COLSPAN="4"><FONT COLOR="white"><B>2. พารามิเตอร์ระบบโครงสร้าง (Structural System)</B></FONT></TD></TR>
+            <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="6" COLOR="#94A3B8">
+                <TR><TD BGCOLOR="#1E293B" COLSPAN="4"><FONT COLOR="#F8FAFC"><B>2. พารามิเตอร์ระบบโครงสร้าง (Structural System)</B></FONT></TD></TR>
                 <TR>
-                    <TD ALIGN="LEFT" BGCOLOR="#f0f9ff">ตัวคูณสำคัญ (Ie):</TD><TD BGCOLOR="#ffffff"><B>{_Ie}</B></TD>
-                    <TD ALIGN="LEFT" BGCOLOR="#f0f9ff">ลดแรงออกแบบ (R):</TD><TD BGCOLOR="#ffffff"><B>{_R}</B></TD>
+                    <TD ALIGN="LEFT" BGCOLOR="#F1F5F9"><FONT COLOR="#334155">ตัวคูณสำคัญ (Ie):</FONT></TD><TD BGCOLOR="#FFFFFF"><B>{_Ie}</B></TD>
+                    <TD ALIGN="LEFT" BGCOLOR="#F1F5F9"><FONT COLOR="#334155">ลดแรงออกแบบ (R):</FONT></TD><TD BGCOLOR="#FFFFFF"><B>{_R}</B></TD>
                 </TR>
                 <TR>
-                    <TD ALIGN="LEFT" BGCOLOR="#f0f9ff">คาบเวลาอาคาร (Ta):</TD><TD BGCOLOR="#ffffff"><B>{_Ta} s.</B></TD>
-                    <TD ALIGN="LEFT" BGCOLOR="#f0f9ff">ขยายระยะโยก (Cd):</TD><TD BGCOLOR="#ffffff"><B>{_Cd}</B></TD>
+                    <TD ALIGN="LEFT" BGCOLOR="#F1F5F9"><FONT COLOR="#334155">คาบเวลาอาคาร (Ta):</FONT></TD><TD BGCOLOR="#FFFFFF"><B>{_Ta} s.</B></TD>
+                    <TD ALIGN="LEFT" BGCOLOR="#F1F5F9"><FONT COLOR="#334155">ขยายระยะโยก (Cd):</FONT></TD><TD BGCOLOR="#FFFFFF"><B>{_Cd}</B></TD>
                 </TR>
             </TABLE>
         >];
 
         // 🎯 CARD 3: แรงเฉือนที่ฐาน
         Card_BaseShear [label=<
-            <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="6" COLOR="#cbd5e1">
-                <TR><TD BGCOLOR="#be123c" COLSPAN="2"><FONT COLOR="white"><B>3. แรงเฉือนที่ฐานอาคาร (Design Base Shear)</B></FONT></TD></TR>
-                <TR><TD ALIGN="LEFT" BGCOLOR="#fff1f2">สัมประสิทธิ์การตอบสนอง (Cs):</TD><TD BGCOLOR="#ffffff"><FONT COLOR="#be123c"><B>{_Cs}</B></FONT></TD></TR>
-                <TR><TD ALIGN="LEFT" BGCOLOR="#fff1f2">น้ำหนักประสิทธิผล (W):</TD><TD BGCOLOR="#ffffff"><B>{_W} ตัน</B></TD></TR>
-                <TR><TD ALIGN="LEFT" BGCOLOR="#fff1f2">แรงเฉือนออกแบบ (V = Cs × W):</TD><TD BGCOLOR="#fee2e2"><FONT COLOR="#9f1239"><B>{_V} ตัน</B></FONT></TD></TR>
+            <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="6" COLOR="#94A3B8">
+                <TR><TD BGCOLOR="#1E293B" COLSPAN="2"><FONT COLOR="#F8FAFC"><B>3. แรงเฉือนที่ฐานอาคาร (Design Base Shear)</B></FONT></TD></TR>
+                <TR><TD ALIGN="LEFT" BGCOLOR="#F1F5F9"><FONT COLOR="#334155">สัมประสิทธิ์การตอบสนอง (Cs):</FONT></TD><TD BGCOLOR="#FFFFFF"><B>{_Cs}</B></TD></TR>
+                <TR><TD ALIGN="LEFT" BGCOLOR="#F1F5F9"><FONT COLOR="#334155">น้ำหนักประสิทธิผล (W):</FONT></TD><TD BGCOLOR="#FFFFFF"><B>{_W} ตัน</B></TD></TR>
+                <TR><TD ALIGN="LEFT" BGCOLOR="#F1F5F9"><FONT COLOR="#334155">แรงเฉือนออกแบบ (V):</FONT></TD><TD BGCOLOR="#FFFFFF"><FONT COLOR="#991B1B"><B>{_V} ตัน</B></FONT></TD></TR>
             </TABLE>
         >];
 
         // 🎯 CARD 4: การกระจายแรง
         Card_Dist [label=<
-            <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="6" COLOR="#cbd5e1">
-                <TR><TD BGCOLOR="#6d28d9" COLSPAN="2"><FONT COLOR="white"><B>4. การกระจายแรงแนวดิ่ง (Vertical Distribution)</B></FONT></TD></TR>
-                <TR><TD ALIGN="LEFT" BGCOLOR="#f5f3ff">เลขชี้กำลัง (k):</TD><TD BGCOLOR="#ffffff"><B>{_k}</B></TD></TR>
-                <TR><TD ALIGN="LEFT" BGCOLOR="#f5f3ff">สมการควบคุม:</TD><TD BGCOLOR="#ffffff">F<SUB>x</SUB> = C<SUB>vx</SUB> × V</TD></TR>
+            <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="6" COLOR="#94A3B8">
+                <TR><TD BGCOLOR="#1E293B" COLSPAN="2"><FONT COLOR="#F8FAFC"><B>4. การกระจายแรงแนวดิ่ง</B></FONT></TD></TR>
+                <TR><TD ALIGN="LEFT" BGCOLOR="#F1F5F9"><FONT COLOR="#334155">เลขชี้กำลัง (k):</FONT></TD><TD BGCOLOR="#FFFFFF"><B>{_k}</B></TD></TR>
+                <TR><TD ALIGN="LEFT" BGCOLOR="#F1F5F9"><FONT COLOR="#334155">สมการควบคุม:</FONT></TD><TD BGCOLOR="#FFFFFF">F<SUB>x</SUB> = C<SUB>vx</SUB> × V</TD></TR>
             </TABLE>
         >];
 
         // 🎯 CARD 5: การตรวจสอบเสถียรภาพ
         Card_Drift [label=<
-            <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="6" COLOR="#cbd5e1">
-                <TR><TD BGCOLOR="#0f766e" COLSPAN="2"><FONT COLOR="white"><B>5. การประเมินระยะโยกตัว (Story Drift Check)</B></FONT></TD></TR>
-                <TR><TD ALIGN="LEFT" BGCOLOR="#f0fdfa">เกณฑ์ขีดจำกัด (Limit):</TD><TD BGCOLOR="#ffffff"><B>{limit_pct:.1f}% ของความสูงชั้น</B></TD></TR>
-                <TR><TD ALIGN="LEFT" BGCOLOR="#f0fdfa">สถานะความปลอดภัย:</TD><TD BGCOLOR="{drift_color}"><FONT COLOR="white"><B>{overall_drift}</B></FONT></TD></TR>
+            <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="6" COLOR="#94A3B8">
+                <TR><TD BGCOLOR="#1E293B" COLSPAN="2"><FONT COLOR="#F8FAFC"><B>5. การประเมินระยะโยกตัว (Drift Check)</B></FONT></TD></TR>
+                <TR><TD ALIGN="LEFT" BGCOLOR="#F1F5F9"><FONT COLOR="#334155">เกณฑ์ขีดจำกัด (Limit):</FONT></TD><TD BGCOLOR="#FFFFFF"><B>{limit_pct:.1f}%</B></TD></TR>
+                <TR><TD ALIGN="LEFT" BGCOLOR="#F1F5F9"><FONT COLOR="#334155">สถานะความปลอดภัย:</FONT></TD><TD BGCOLOR="{drift_color}"><FONT COLOR="white"><B>{overall_drift}</B></FONT></TD></TR>
             </TABLE>
         >];
 
@@ -648,14 +647,13 @@ with tab5:
     }}
     """
     
-    # 3. แสดงผล Flowchart ระดับ High-End
+    # 3. แสดงผล Flowchart
     st.graphviz_chart(pro_flowchart_dot, use_container_width=True)
 
-    # 4. ปุ่มสำหรับพิมพ์หรือ Export ข้อมูล
+    # 4. ปุ่มและคำแนะนำสำหรับการพิมพ์
     st.divider()
     col_btn, col_info = st.columns([1, 3])
     with col_btn:
-        # ใช้ปุ่มหลอกเพื่อให้ดูเหมือนมีฟังก์ชันพิมพ์ (หรือแคปจอ)
-        st.button("🖨️ พิมพ์รายงานสรุป (Print Summary)", type="primary", use_container_width=True, help="กด Ctrl+P (หรือ Cmd+P บน Mac) เพื่อพิมพ์หน้านี้เป็น PDF")
+        st.button("🖨️ พิมพ์หน้านี้ (Print PDF)", type="primary", use_container_width=True)
     with col_info:
-        st.info("💡 **Tips สำหรับวิศวกร:** คุณสามารถกด `Ctrl + P` (Windows) หรือ `Cmd + P` (Mac) แล้วเลือก *Save as PDF* เพื่อนำหน้านี้ไปใช้เป็นหน้าสรุปปะหน้า (Cover Summary) สำหรับยื่นให้คณะกรรมการตรวจแบบได้ทันทีครับ")
+        st.info("💡 **คำแนะนำ:** การจัดเรียงและโทนสีถูกปรับให้รองรับการสั่งพิมพ์บนกระดาษ A4 (รวมถึงการพิมพ์แบบขาว-ดำ) โดยไม่สูญเสียความคมชัด กด `Ctrl + P` เพื่อพิมพ์หรือจัดเก็บเป็น PDF ได้ทันที")
