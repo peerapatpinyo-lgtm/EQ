@@ -133,18 +133,65 @@ def create_spectrum_plot(T_values: np.ndarray, Sa_values: np.ndarray, Ta: float,
     )
     return fig
 
+
 def create_force_plot(floor_names: np.ndarray, Fx: np.ndarray, Vx: np.ndarray, Mx: np.ndarray) -> go.Figure:
-    """สร้างกราฟแท่งแบบกลุ่มเปรียบเทียบ Fx, Vx และ Mx ของแต่ละชั้นอาคาร"""
+    """สร้างกราฟเส้นแสดงโครงร่างพฤติกรรม (Structural Profile) เปรียบเทียบ Fx, Vx และ Mx ตามความสูงของชั้นอาคาร"""
     fig_force = make_subplots(
-        rows=1, cols=3, shared_yaxes=True, horizontal_spacing=0.06,
-        subplot_titles=("แรงผลักแผ่นดินไหว (Fx)", "แรงเฉือนสะสม (Vx)", "โมเมนต์พลิกคว่ำ (Mx)")
+        rows=1, cols=3, shared_yaxes=True, horizontal_spacing=0.08,
+        subplot_titles=("<b>แรงมวลอาคารประจำชั้น (Fx)</b>", "<b>ไดอะแกรมแรงเฉือนสะสม (Vx)</b>", "<b>ไดอะแกรมโมเมนต์พลิกคว่ำ (Mx)</b>")
     )
-    fig_force.add_trace(go.Bar(y=floor_names, x=Fx, orientation='h', marker_color='#3b82f6'), row=1, col=1)
-    fig_force.add_trace(go.Bar(y=floor_names, x=Vx, orientation='h', marker_color='#10b981'), row=1, col=2)
-    fig_force.add_trace(go.Bar(y=floor_names, x=Mx, orientation='h', marker_color='#f59e0b'), row=1, col=3)
-    fig_force.update_layout(height=400, showlegend=False, template="plotly_white",
-                            margin=dict(l=10, r=10, t=40, b=20))
-    fig_force.update_yaxes(autorange="reversed", title_text="ชั้นอาคาร", row=1, col=1)
+    
+    # แปลงข้อมูลชื่อชั้นให้อยู่ในรูป List เพื่อการแสดงผลบนแกนที่เสถียร
+    y_labels = list(floor_names)
+    
+    # Subplot 1: แรงผลักแผ่นดินไหวประจำชั้น (Story Force Profile)
+    fig_force.add_trace(go.Scatter(
+        x=Fx, y=y_labels, mode='lines+markers', name='Fx (แรงผลัก)',
+        line=dict(color='#1e40af', width=3),
+        marker=dict(size=9, symbol='circle', color='#3b82f6', line=dict(width=1.5, color='white')),
+        fill='tozerox', fillcolor='rgba(30, 64, 175, 0.06)',
+        hovertemplate='แรงผลัก Fx: %{x:,.2f} ตัน<extra></extra>'
+    ), row=1, col=1)
+    
+    # Subplot 2: แรงเฉือนสะสมประจำชั้น (Story Shear Profile)
+    fig_force.add_trace(go.Scatter(
+        x=Vx, y=y_labels, mode='lines+markers', name='Vx (แรงเฉือน)',
+        line=dict(color='#065f46', width=3),
+        marker=dict(size=9, symbol='diamond', color='#10b981', line=dict(width=1.5, color='white')),
+        fill='tozerox', fillcolor='rgba(6, 95, 70, 0.06)',
+        hovertemplate='แรงเฉือน Vx: %{x:,.2f} ตัน<extra></extra>'
+    ), row=1, col=2)
+    
+    # Subplot 3: โมเมนต์พลิกคว่ำสะสม (Overturning Moment Profile)
+    fig_force.add_trace(go.Scatter(
+        x=Mx, y=y_labels, mode='lines+markers', name='Mx (โมเมนต์)',
+        line=dict(color='#9a3412', width=3),
+        marker=dict(size=9, symbol='square', color='#f59e0b', line=dict(width=1.5, color='white')),
+        fill='tozerox', fillcolor='rgba(154, 52, 18, 0.06)',
+        hovertemplate='โมเมนต์ Mx: %{x:,.2f} ตัน-ม.<extra></extra>'
+    ), row=1, col=3)
+    
+    # ปรับแต่ง Layout และสไตล์การ Hover ให้เหมือนโปรแกรมโครงสร้างชั้นนำ
+    fig_force.update_layout(
+        height=480, showlegend=False, template="plotly_white",
+        margin=dict(l=60, r=20, t=50, b=50),
+        hovermode="y unified"  # ล็อคแกน Y: เลื่อนเมาส์ชี้ระดับชั้นเดียว จะเห็นค่าครบทั้ง 3 กราฟพร้อมกัน
+    )
+    
+    # ปรับแต่งข้อความและหน่วยบนแกน X ของแต่ละ Subplot
+    fig_force.update_xaxes(title_text="<b>แรง Fx (ตัน)</b>", showgrid=True, gridcolor='#e5e7eb', row=1, col=1)
+    fig_force.update_xaxes(title_text="<b>แรงเฉือน Vx (ตัน)</b>", showgrid=True, gridcolor='#e5e7eb', row=1, col=2)
+    fig_force.update_xaxes(title_text="<b>โมเมนต์ Mx (ตัน-ม.)</b>", showgrid=True, gridcolor='#e5e7eb', row=1, col=3)
+    
+    # ปรับแต่งแกน Y ตัวแชร์ (ควบคุมลำดับความสูงอาคาร)
+    fig_force.update_yaxes(
+        autorange="reversed",  # บังคับให้ชั้นบนสุด (Roof) อยู่ด้านบน และรากฐานอยู่ด้านล่างตามโครงสร้างจริง
+        title_text="<b>ระดับชั้นอาคาร (Story Level)</b>", 
+        showgrid=True, gridcolor='#e5e7eb',
+        tickfont=dict(weight='bold'),
+        row=1, col=1
+    )
+    
     return fig_force
 
 def create_drift_model_plot() -> go.Figure:
