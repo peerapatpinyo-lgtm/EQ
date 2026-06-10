@@ -257,7 +257,7 @@ with tab2:
         }
     }
 
-    # แสดงข้อสรุปภาพรวม
+    # แสดงข้อสรุปภาพรวมตามผลคำนวณจริง
     if sdc == 'ก':
         st.success(f"✅ **อาคารนี้จัดอยู่ในประเภทการออกแบบสุดท้าย: '{sdc}'**")
         st.markdown(f"👉 {sdc_actions[sdc]['action']}")
@@ -267,44 +267,59 @@ with tab2:
 
     st.markdown("---")
 
-    # 🗺️ เพิ่มส่วนแผนผังเส้นทางการออกแบบ (Roadmap Map)
-    st.subheader("🗺️ แผนผังเส้นทางการไปต่อ (Design Method Roadmap)")
-    st.markdown("คลิกขยายแถบด้านล่างเพื่อดูแผนผังการตัดสินใจว่าโครงสร้างของคุณต้องวิ่งไปที่วิธีใดตามมาตรฐาน มยผ.")
+    # 🗺️ ส่วนแผนผังเส้นทางการออกแบบระดับโปร (Engineered Roadmap)
+    st.subheader("🗺️ แผนผังขั้นตอนการเลือกวิธีวิเคราะห์ (Seismic Analysis Decision Flowchart)")
+    st.markdown("ผังแสดงเงื่อนไขบังคับตามมาตรฐาน **มยผ. 1301/1302** เพื่อเลือกระหว่างวิธีแรงสถิตเทียบเท่าหรือวิธีพลศาสตร์")
     
-    # สร้างโครงสร้างต้นไม้การตัดสินใจด้วย Graphviz (รองรับภาษาไทยในตัว)
-    roadmap_dot = f"""
-    digraph G {{
-        graph [rankdir=TB, bgcolor="transparent"]
-        node [fontname="ChulaCharasNew, Tahoma, Arial", shape=box, style="filled,rounded", color="#2c3e50", fontcolor="white", fillcolor="#34495e", fontsize=11]
-        edge [fontname="ChulaCharasNew, Tahoma, Arial", color="#7f8c8d", fontsize=10]
+    # อัปเกรดความสวยงามของโครงสร้างต้นไม้ (ใช้ Subgraph แบ่งกลุ่มอย่างชัดเจน)
+    roadmap_dot = """
+    digraph G {
+        graph [rankdir=TB, bgcolor="transparent", splines=true, nodesep=0.5, ranksep=0.4]
+        node [fontname="Tahoma, Arial, sans-serif", shape=box, style="filled,rounded", color="#1e293b", fontcolor="#ffffff", fillcolor="#334155", fontsize=11, penwidth=1.5]
+        edge [fontname="Tahoma, Arial, sans-serif", color="#64748b", fontsize=10, arrowhead=vee, arrowsize=0.8, penwidth=1.5]
 
-        // Nodes Definition
-        start [label="📌 ได้ผลลัพธ์ SDC", fillcolor="#2980b9"]
-        sdc_a [label="ประเภท ก", fillcolor="#27ae60"]
-        sdc_b [label="ประเภท ข", fillcolor="#f39c12"]
-        sdc_c [label="ประเภท ค", fillcolor="#d35400"]
-        sdc_d [label="ประเภท ง", fillcolor="#c0392b"]
-        
-        static_ok [label="🟢 ลุยต่อด้วยวิธีแรงสถิตเทียบเท่า\\n(Equivalent Static Procedure)\\n[ไปที่ Tab 4]", fillcolor="#2ecc71", fontcolor="black"]
-        check_reg [label="🔍 ตรวจสอบรูปทรงอาคาร\\n(Structural Regularity)", fillcolor="#f1c40f", fontcolor="black"]
-        
-        dynamic_req [label="🛑 บังคับใช้วิธีพลศาสตร์เท่านั้น\\n(Dynamic Analysis เช่น Response Spectrum)\\n*ไม่สามารถใช้โปรแกรมสถิตนี้ต่อได้*", fillcolor="#e74c3c"]
+        // Phase 1: การคัดแยกประเภท SDC
+        subgraph cluster_phase1 {
+            label="[ เฟส 1: ผลลัพธ์ประเภทการออกแบบ (SDC) ]";
+            fontname="Tahoma, Arial, sans-serif"; fontsize=12; fontcolor="#0f172a"; style="dashed"; color="#cbd5e1"; bgcolor="#f8fafc";
+            
+            sdc_a [label="🔹 ประเภท ก\\n(เสี่ยงภัยต่ำมาก)", fillcolor="#10b981", color="#047857"]
+            sdc_b [label="🔹 ประเภท ข\\n(เสี่ยงภัยต่ำ)", fillcolor="#f59e0b", color="#b45309"]
+            sdc_c [label="🔹 ประเภท ค\\n(เสี่ยงภัยปานกลาง)", fillcolor="#f97316", color="#c2410c"]
+            sdc_d [label="🔹 ประเภท ง\\n(เสี่ยงภัยสูง)", fillcolor="#ef4444", color="#b91c1c"]
+        }
 
-        // Relations
-        start -> sdc_a [label=" SDC A"]
-        start -> sdc_b [label=" SDC B"]
-        start -> sdc_c [label=" SDC C"]
-        start -> sdc_d [label=" SDC D"]
+        // Phase 2: จุดคัดกรองทางวิศวกรรม
+        subgraph cluster_phase2 {
+            label="[ เฟส 2: ตรวจสอบเงื่อนไขรูปทรงและมิติอาคาร ]";
+            fontname="Tahoma, Arial, sans-serif"; fontsize=12; fontcolor="#0f172a"; style="dashed"; color="#cbd5e1"; bgcolor="#f8fafc";
+            
+            bypass_b [label="ไม่ต้องตรวจสอบรูปทรง\\n(ผ่านเกณฑ์สถิตโดยอัตโนมัติ)", fillcolor="#94a3b8", fontcolor="#1e293b"]
+            check_rules [label="⚖️ ตรวจสอบรูปทรงอาคาร\\n(Structural Regularity)\\nและข้อจำกัดความสูง", fillcolor="#3b82f6", color="#1d4ed8"]
+        }
 
-        sdc_a -> static_ok [label=" คิดแรงข้างขั้นต่ำ 1%W"]
-        sdc_b -> static_ok [label=" ใช้ได้เกือบทุกกรณี"]
+        // Phase 3: บทสรุปวิธีวิเคราะห์
+        subgraph cluster_phase3 {
+            label="[ เฟส 3: วิธีการวิเคราะห์ที่มาตรฐานอนุญาต ]";
+            fontname="Tahoma, Arial, sans-serif"; fontsize=12; fontcolor="#0f172a"; style="dashed"; color="#cbd5e1"; bgcolor="#f8fafc";
+            
+            done_a [label="🟢 ใช้แรงบวกด้านข้างขั้นต่ำ 1%W\\n[ จบขั้นตอน - ไม่ต้องคิดแรงแผ่นดินไหว ]", fillcolor="#059669"]
+            static_final [label="🟢 ลุยต่อวิธีแรงสถิตเทียบเท่า\\n(Equivalent Static Procedure)\\n[ เปิดไปคำนวณที่ Tab 4 ]", fillcolor="#10b981"]
+            dynamic_final [label="🛑 บังคับใช้วิธีพลศาสตร์เท่านั้น\\n(Dynamic Analysis / Response Spectrum)\\n*ห้ามใช้วิธีสถิตในโปรแกรมนี้*", fillcolor="#dc2626"]
+        }
+
+        // การโยงเส้นความสัมพันธ์ (Workflow Connections)
+        sdc_a -> done_a [weight=2]
         
-        sdc_c -> check_reg
-        sdc_d -> check_reg
+        sdc_b -> bypass_b
+        bypass_b -> static_final
         
-        check_reg -> static_ok [label=" โครงสร้างสม่ำเสมอ\\nและสูงไม่เกินเกณฑ์"]
-        check_reg -> dynamic_req [label=" โครงสร้างไม่สม่ำเสมอ\\nหรือสูงเกินเกณฑ์"]
-    }}
+        sdc_c -> check_rules
+        sdc_d -> check_rules
+        
+        check_rules -> static_final [label="  โครงสร้างสม่ำเสมอ\\n  และสูงไม่เกินเกณฑ์ มยผ."]
+        check_rules -> dynamic_final [label="  ❌ มีความไม่สม่ำเสมอ\\n  หรือ สูงเกินเกณฑ์กำหนด"]
+    }
     """
     st.graphviz_chart(roadmap_dot)
 
