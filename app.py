@@ -434,13 +434,14 @@ with tab3:
     # แสดงกราฟใน Streamlit
     st.plotly_chart(fig, use_container_width=True)
 
-# ----------------- TAB 4 -----------------
+
+# ----------------- TAB 4 (Ultimate Professional Edition) -----------------
 with tab4:
     st.header("🏢 วิธีแรงสถิตเทียบเท่า (Equivalent Static Procedure)")
-    st.markdown("ระบบคำนวณแรงแผ่นดินไหว และตรวจสอบความมั่นคงของโครงสร้าง (Story Drift Verification)")
+    st.markdown("ระบบคำนวณกระจายแรงแผ่นดินไหว และตรวจสอบเสถียรภาพอาคารตามมาตรฐาน **มยผ. 1301/1302**")
 
     # --- สเต็ป 1: พารามิเตอร์ระบบโครงสร้าง ---
-    st.subheader("⚡ สเต็ปที่ 1: กำหนดสัมประสิทธิ์โครงสร้างตามมาตรฐาน")
+    st.subheader("⚡ สเต็ปที่ 1: กำหนดสัมประสิทธิ์โครงสร้าง")
     
     structural_systems = {
         "โครงนำแรงดัด คสล. ความเหนียวสูง (SMF)": {"R": 8.0, "Omega": 3.0, "Cd": 5.5},
@@ -454,29 +455,28 @@ with tab4:
     R = structural_systems[selected_system]["R"]
     Omega0 = structural_systems[selected_system]["Omega"]
     Cd = structural_systems[selected_system]["Cd"]
-    Ie = importance_factor # ตัวแปรดึงจากหน้าแรกที่คุณมีอยู่แล้ว
+    Ie = importance_factor # ตัวแปรดึงจากฟังก์ชันหลักส่วนต้นของคุณ
 
-    # คำนวณสัมประสิทธิ์แรงเฉือนที่ฐาน (Cs)
+    # คำนวณสัมประสิทธิ์แรงเฉือนที่ฐาน (Cs) ตามสมการมาตรฐาน
     Cs_compute = SDS / (R / Ie)
     Cs_max = SD1 / (Ta * (R / Ie)) if Ta > 0 else Cs_compute
-    Cs_min = 0.01 # ค่าต่ำสุดตามมาตรฐาน มยผ.
+    Cs_min = 0.01 
     Cs_governing = max(Cs_min, min(Cs_compute, Cs_max))
 
-    # แสดงผลตัวแปรแบบ Dashboard
-    col_metric1, col_metric2, col_metric3, col_metric4 = st.columns(4)
-    col_metric1.metric("ตัวคูณลดแรงออกแบบ (R)", f"{R}")
-    col_metric2.metric("ตัวคูณเพิ่มกำลัง (Ω₀)", f"{Omega0}")
-    col_metric3.metric("ตัวคูณขยายระยะโยก (Cd)", f"{Cd}")
-    col_metric4.metric("สปส.แรงเฉือนที่ฐาน (Cs)", f"{Cs_governing:.4f}")
+    col_m1, col_m2, col_m3, col_m4 = st.columns(4)
+    col_m1.metric("ลดแรงออกแบบ (R)", f"{R}")
+    col_m2.metric("เพิ่มกำลังส่วนวิกฤต (Ω₀)", f"{Omega0}")
+    col_m3.metric("ขยายระยะโยก (Cd)", f"{Cd}")
+    col_m4.metric("แรงเฉือนที่ฐาน (Cs)", f"{Cs_governing:.4f}")
 
     st.divider()
 
-    # --- แบ่งหน้าต่างย่อย (Sub-Tabs) ---
-    sub_tab1, sub_tab2 = st.tabs(["🏗️ 1. กระจายแรงแผ่นดินไหว (Forces & Moments)", "📏 2. ตรวจสอบการโยกตัว (Story Drift Check)"])
+    # --- แบ่งหน้าต่างการทำงานหลักออกเป็น 2 ส่วนย่อย ---
+    sub_tab1, sub_tab2 = st.tabs(["🏗️ 1. รายงานการคำนวณแรงประจำชั้น", "📏 2. รายงานการตรวจสอบการโยกตัว"])
 
     # ================= SUB TAB 1 =================
     with sub_tab1:
-        st.markdown("**กรอกข้อมูลความสูงและน้ำหนักของแต่ละชั้น (เรียงจากชั้นบนสุดลงล่างสุด)**")
+        st.markdown("##### 📝 กรอกข้อมูลมิติอาคาร (เรียงจากชั้นบนสุดลงล่างสุด)")
         
         default_stories = pd.DataFrame([
             {"ชื่อชั้น (Floor)": "ชั้น 4 (ดาดฟ้า)", "ความสูงสะสม hx (ม.)": 14.0, "น้ำหนักรวม wx (ตัน)": 150.0},
@@ -500,21 +500,17 @@ with tab4:
                 wx = cleaned_df.iloc[:, 2].astype(float).values
                 floor_names = cleaned_df.iloc[:, 0].astype(str).values
                 
-                # --- การคำนวณหลัก ---
+                # ฟิสิกส์การคำนวณ
                 total_W = np.sum(wx)
                 total_V = Cs_governing * total_W
-                
-                # ตัวแปร k (Exponent) สำหรับคำนวณแรง
                 k_exp = 1.0 if Ta <= 0.5 else (2.0 if Ta >= 2.5 else 1.0 + (Ta - 0.5) / 2.0)
                 
                 w_hx_k = wx * (hx ** k_exp)
                 sum_w_hx_k = np.sum(w_hx_k)
                 cvx = w_hx_k / sum_w_hx_k if sum_w_hx_k > 0 else np.zeros_like(w_hx_k)
-                
                 Fx = cvx * total_V
-                Vx = np.cumsum(Fx) # แรงเฉือนสะสม
+                Vx = np.cumsum(Fx)
                 
-                # โมเมนต์พลิกคว่ำสะสม (Mx)
                 Mx = np.zeros_like(Fx)
                 for i in range(len(hx)):
                     moment = 0
@@ -522,90 +518,81 @@ with tab4:
                         moment += Fx[j] * max(0, hx[j] - hx[i])
                     Mx[i] = moment
 
-                # รวมผลลัพธ์ใส่ DataFrame
+                # โชว์ตารางสรุปผล
                 res_force = cleaned_df.copy()
                 res_force["ตัวคูณ Cvx"] = cvx
                 res_force["แรงผลัก Fx (ตัน)"] = Fx
                 res_force["แรงเฉือนสะสม Vx (ตัน)"] = Vx
                 res_force["โมเมนต์พลิกคว่ำ Mx (ตัน-ม.)"] = Mx
                 
-                st.markdown("### 📊 ตารางสรุปแรงออกแบบประจำชั้น")
+                st.markdown("### 📊 ตารางสรุปแรงออกแบบโครงสร้าง")
                 st.dataframe(res_force.style.format({
-                    "ความสูงสะสม hx (ม.)": "{:.2f}",
-                    "น้ำหนักรวม wx (ตัน)": "{:,.2f}",
-                    "ตัวคูณ Cvx": "{:.4f}",
-                    "แรงผลัก Fx (ตัน)": "{:,.2f}",
-                    "แรงเฉือนสะสม Vx (ตัน)": "{:,.2f}",
-                    "โมเมนต์พลิกคว่ำ Mx (ตัน-ม.)": "{:,.2f}"
+                    "ความสูงสะสม hx (ม.)": "{:.2f}", "น้ำหนักรวม wx (ตัน)": "{:,.2f}",
+                    "ตัวคูณ Cvx": "{:.4f}", "แรงผลัก Fx (ตัน)": "{:,.2f}",
+                    "แรงเฉือนสะสม Vx (ตัน)": "{:,.2f}", "โมเมนต์พลิกคว่ำ Mx (ตัน-ม.)": "{:,.2f}"
                 }), use_container_width=True)
 
-                # พล็อตกราฟ 3 แกน แบบมืออาชีพ (Fx, Vx, Mx)
+                # 📑 เพิ่มส่วนตรวจสอบสัญญวิทยาและสูตร (Calculation Note)
+                with st.expander("📄 เปิดดูบันทึกข้อความสรุปสูตรคำนวณ (Calculation Note Summary)", expanded=False):
+                    st.markdown("### 🖋️ รายการสรุปสูตรคำนวณเชิงวิศวกรรม")
+                    st.latex(r"V_{\text{base}} = C_s \times W = " + f"{Cs_governing:.4f} \times {total_W:,.2f} = {total_V:,.2f} \\text{ ตัน}")
+                    st.latex(r"k_{\text{exponent}} = " + f"{k_exp:.3f} \\quad (\\text{อ้างอิงจากคาบธรรมชาติอาคาร } T_a = {Ta:.3f} \\text{ วินาที})")
+                    st.markdown("---")
+                    for idx, name in enumerate(floor_names):
+                        st.markdown(f"**📍 การกระจายแรงสู่ระดับ {name}:**")
+                        st.latex(f"C_{{vx}} = \\frac{{{wx[idx]:,.1f} \\times {hx[idx]:.2f}^{{{k_exp:.2f}}}}}{{{sum_w_hx_k:,.1f}}} = {cvx[idx]:.4f}")
+                        st.latex(f"F_x = {cvx[idx]:.4f} \\times {total_V:,.2f} = {Fx[idx]:,.2f} \\text{ ตัน}")
+
+                # พล็อตกราฟ Subplots
                 from plotly.subplots import make_subplots
                 import plotly.graph_objects as go
-                
-                fig_force = make_subplots(rows=1, cols=3, shared_yaxes=True, horizontal_spacing=0.06,
-                                    subplot_titles=("แรงผลักแผ่นดินไหว (Fx)", "แรงเฉือนสะสม (Vx)", "โมเมนต์พลิกคว่ำ (Mx)"))
-                
-                fig_force.add_trace(go.Bar(y=floor_names, x=Fx, orientation='h', marker_color='#3b82f6', name="Fx"), row=1, col=1)
-                fig_force.add_trace(go.Bar(y=floor_names, x=Vx, orientation='h', marker_color='#10b981', name="Vx"), row=1, col=2)
-                fig_force.add_trace(go.Bar(y=floor_names, x=Mx, orientation='h', marker_color='#f59e0b', name="Mx"), row=1, col=3)
-                
-                fig_force.update_layout(height=450, showlegend=False, template="plotly_white", margin=dict(l=10, r=10, t=40, b=20))
+                fig_force = make_subplots(rows=1, cols=3, shared_yaxes=True, horizontal_spacing=0.06, subplot_titles=("แรงผลักแผ่นดินไหว (Fx)", "แรงเฉือนสะสม (Vx)", "โมเมนต์พลิกคว่ำ (Mx)"))
+                fig_force.add_trace(go.Bar(y=floor_names, x=Fx, orientation='h', marker_color='#3b82f6'), row=1, col=1)
+                fig_force.add_trace(go.Bar(y=floor_names, x=Vx, orientation='h', marker_color='#10b981'), row=1, col=2)
+                fig_force.add_trace(go.Bar(y=floor_names, x=Mx, orientation='h', marker_color='#f59e0b'), row=1, col=3)
+                fig_force.update_layout(height=400, showlegend=False, template="plotly_white", margin=dict(l=10, r=10, t=40, b=20))
                 fig_force.update_yaxes(autorange="reversed", title_text="ชั้นอาคาร", row=1, col=1)
                 st.plotly_chart(fig_force, use_container_width=True)
 
     # ================= SUB TAB 2 =================
     with sub_tab2:
-        st.markdown("**ป้อนค่าการโยกตัว (Displacement) จากโมเดลโครงสร้าง เพื่อตรวจสอบเสถียรภาพ**")
+        st.markdown("##### 📏 ตรวจสอบระยะเคลื่อนตัวขยับพังทลาย (Story Drift Safety Check)")
         
-        # ปรับค่า Allowable Drift Limit อัตโนมัติ
+        # จัดการข้อมูล Drift Limit
         if Ie >= 1.5:
-            drift_limit_factor = 0.010
-            cat_text = "อาคารความสำคัญสูงมาก (Limit = 1.0%)"
+            drift_limit_factor = 0.010; cat_text = "อาคารความสำคัญสูงมาก (Limit = 1.0%)"
         elif Ie >= 1.25:
-            drift_limit_factor = 0.015
-            cat_text = "อาคารความสำคัญสูง (Limit = 1.5%)"
+            drift_limit_factor = 0.015; cat_text = "อาคารความสำคัญสูง (Limit = 1.5%)"
         else:
-            drift_limit_factor = 0.020
-            cat_text = "อาคารทั่วไป (Limit = 2.0%)"
+            drift_limit_factor = 0.020; cat_text = "อาคารทั่วไป (Limit = 2.0%)"
 
-        # กล่องคู่มือพร้อมกราฟิก (ซ่อนได้เพื่อให้หน้าจอคลีน)
-        with st.expander("📖 คู่มือ: คำอธิบายสัญลักษณ์และเกณฑ์การคำนวณ Story Drift", expanded=False):
-            st.info(f"🎯 **เกณฑ์ที่ใช้ควบคุม:** {cat_text} ของความสูงชั้น")
-            col_g1, col_g2 = st.columns([1, 1.2])
-            with col_g1:
-                st.markdown("""
-                * **$W_x$**: น้ำหนักประจำชั้น
-                * **$F_x$**: แรงผลักแผ่นดินไหว
-                * **$h_x$**: ความสูงสะสมจากฐานราก
-                * **$\delta_e$**: ระยะโยกพืดหยุ่นจากโมเดล
-                * **$\Delta$**: ระยะดริฟต์สัมพัทธ์ระหว่างชั้น
-                """)
-                st.latex(r"\text{ดริฟต์เรโช} = \frac{\Delta}{h} = \frac{\delta_{top} - \delta_{bot}}{h_{net}}")
-            with col_g2:
+        # แสดงกล่องอธิบายโครงสร้างพร้อมโมเดลวาดกราฟิกให้วิศวกรเห็นพฤติกรรมโครงสร้าง
+        with st.container(border=True):
+            st.markdown(f"🎯 **เกณฑ์ที่ใช้ประเมินระบบในโครงการนี้:** {cat_text} ของความสูงชั้นสุทธิ")
+            col_pic1, col_pic2 = st.columns([1, 1.2])
+            with col_pic1:
+                st.markdown("⚙️ **สมการและสัญลักษณ์ที่ควบคุมเสถียรภาพ:**")
+                st.latex(r"\delta_x = \frac{C_d \times \delta_e}{I_e}")
+                st.latex(r"\text{Drift Ratio} = \frac{\delta_{top} - \delta_{bot}}{h_{net}} \le \text{Limit}")
+                st.markdown("<small>**หมายเหตุ:** $\delta_e$ คือระยะเคลื่อนตัวยืดหยุ่นที่ต้องเปิดตาราง Joint Displacement จากโปรแกรมวิเคราะห์โครงสร้าง (เช่น ETABS) มาป้อนลงในช่องสีฟ้าด้านขวา</small>", unsafe_allowed_html=True)
+            with col_pic2:
                 import plotly.graph_objects as go
                 fig_model = go.Figure()
                 x_orig, y_orig = [0, 3], [0, 3, 6, 9] 
                 dx = [0, 0.6, 1.5, 2.2] 
-                
-                # วาดตึกเดิม (เส้นประเทา)
                 for i in range(4): fig_model.add_trace(go.Scatter(x=x_orig, y=[y_orig[i], y_orig[i]], mode='lines', line=dict(color='#d1d5db', width=2, dash='dash')))
                 for x in x_orig: fig_model.add_trace(go.Scatter(x=[x, x], y=[0, 9], mode='lines', line=dict(color='#d1d5db', width=2, dash='dash')))
-                # วาดตึกโยก (เส้นน้ำเงิน)
                 for i in range(1, 4):
                     fig_model.add_trace(go.Scatter(x=[x_orig[0]+dx[i], x_orig[1]+dx[i]], y=[y_orig[i], y_orig[i]], mode='lines+markers', line=dict(color='#3b82f6', width=4), marker=dict(size=6, color='#1e3a8a')))
                     fig_model.add_trace(go.Scatter(x=[x_orig[0]+dx[i-1], x_orig[0]+dx[i]], y=[y_orig[i-1], y_orig[i]], mode='lines', line=dict(color='#3b82f6', width=4)))
                     fig_model.add_trace(go.Scatter(x=[x_orig[1]+dx[i-1], x_orig[1]+dx[i]], y=[y_orig[i-1], y_orig[i]], mode='lines', line=dict(color='#3b82f6', width=4)))
-                
-                # สัญลักษณ์
                 fig_model.add_annotation(x=dx[3], y=9, ax=-1.5, ay=9, xref='x', yref='y', axref='x', ayref='y', showarrow=True, arrowhead=2, arrowcolor='#ef4444')
-                fig_model.add_annotation(x=-0.5, y=9.5, text="<b>Fx</b>", showarrow=False, font=dict(color='#ef4444'))
+                fig_model.add_annotation(x=-0.5, y=9.6, text="<b>Fx</b>", showarrow=False, font=dict(color='#ef4444'))
                 fig_model.add_annotation(x=x_orig[1], y=9, ax=x_orig[1]+dx[3], ay=9, xref='x', yref='y', axref='x', ayref='y', showarrow=True, arrowhead=2, arrowcolor='#9333ea')
-                fig_model.add_annotation(x=x_orig[1] + dx[3]/2, y=9.6, text="<b>δe</b>", showarrow=False, font=dict(color='#9333ea'))
+                fig_model.add_annotation(x=x_orig[1] + dx[3]/2, y=9.7, text="<b>δe</b>", showarrow=False, font=dict(color='#9333ea'))
                 fig_model.add_annotation(x=x_orig[1]+dx[2], y=7.5, ax=x_orig[1]+dx[3], ay=7.5, xref='x', yref='y', axref='x', ayref='y', showarrow=True, arrowhead=2, arrowcolor='#db2777')
                 fig_model.add_annotation(x=x_orig[1] + (dx[2]+dx[3])/2 + 0.5, y=7.5, text="<b>Δ (Drift)</b>", showarrow=False, font=dict(color='#db2777'))
-
-                fig_model.update_layout(xaxis=dict(visible=False, range=[-2, 6]), yaxis=dict(visible=False, range=[-1, 10]), plot_bgcolor='rgba(0,0,0,0)', margin=dict(l=0, r=0, t=0, b=0), height=250, showlegend=False)
+                fig_model.update_layout(xaxis=dict(visible=False, range=[-2, 6]), yaxis=dict(visible=False, range=[-1, 10]), plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', margin=dict(l=0, r=0, t=0, b=0), height=200, showlegend=False)
                 st.plotly_chart(fig_model, use_container_width=True, config={'displayModeBar': False})
 
         # เช็กความพร้อมข้อมูลจาก Sub-tab 1
@@ -626,7 +613,7 @@ with tab4:
             )
             
             delta_e = edited_drift["ระยะโยกพืดหยุ่นจากโปรแกรม δe (ซม.)"].values
-            delta_x = (Cd * delta_e) / Ie # Inelastic Displacement
+            delta_x = (Cd * delta_e) / Ie # การโยกตัวพลาสติกจริงในสนาม
             
             story_h = np.zeros_like(hx)
             drift_ratio = np.zeros_like(hx)
@@ -635,33 +622,26 @@ with tab4:
             for i in range(len(hx)):
                 h_net = hx[i] if i == len(hx)-1 else hx[i] - hx[i+1]
                 story_h[i] = h_net
-                
                 delta_diff = delta_x[i] if i == len(hx)-1 else delta_x[i] - delta_x[i+1]
-                drift_ratio[i] = delta_diff / (h_net * 100) # (ซม./ซม.)
-                
-                if drift_ratio[i] <= drift_limit_factor:
-                    status.append("✅ PASS")
-                else:
-                    status.append("❌ FAIL")
+                drift_ratio[i] = delta_diff / (h_net * 100) 
+                status.append("✅ PASS" if drift_ratio[i] <= drift_limit_factor else "❌ FAIL")
                     
             res_drift = edited_drift.copy()
-            res_drift["ความสูงชั้น (ม.)"] = story_h
-            res_drift["ระยะโยกจริง δx (ซม.)"] = delta_x
+            res_drift["ความสูงชั้นสุทธิ (ม.)"] = story_h
+            res_drift["ระยะโยกจริงในสนาม δx (ซม.)"] = delta_x
             res_drift["Drift Ratio (Δ/h)"] = drift_ratio
             res_drift["Limit (Max)"] = drift_limit_factor
-            res_drift["Status"] = status
+            res_drift["ผลการประเมิน"] = status
             
-            st.markdown("### 🏆 สรุปผลการตรวจสอบ (Pass/Fail)")
+            st.markdown("### 🏆 ตารางประเมินผลความปลอดภัยโครงสร้างอาคาร")
             st.dataframe(res_drift.style.map(
                 lambda x: 'background-color: #dcfce7; color: #166534; font-weight: bold;' if 'PASS' in str(x) 
                 else ('background-color: #fee2e2; color: #991b1b; font-weight: bold;' if 'FAIL' in str(x) else ''),
-                subset=['Status']
+                subset=['ผลการประเมิน']
             ).format({
-                "ความสูงชั้น (ม.)": "{:.2f}",
-                "ระยะโยกจริง δx (ซม.)": "{:.2f}", 
-                "Drift Ratio (Δ/h)": "{:.4f}",
-                "Limit (Max)": "{:.4f}"
+                "ความสูงชั้นสุทธิ (ม.)": "{:.2f}", "ระยะโยกจริงในสนาม δx (ซม.)": "{:.2f}", 
+                "Drift Ratio (Δ/h)": "{:.4f}", "Limit (Max)": "{:.4f}"
             }), use_container_width=True)
             
         else:
-            st.warning("⚠️ กรุณากรอกข้อมูลในแท็บ '1. กระจายแรงแผ่นดินไหว' ให้เสร็จสิ้นก่อนครับ")
+            st.warning("⚠️ กรุณากรอกข้อมูลในหน้าย่อยที่ 1 'กระจายแรงแผ่นดินไหว' เพื่อตั้งต้นข้อมูลชั้นอาคารก่อนครับ")
