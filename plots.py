@@ -291,3 +291,99 @@ def create_theta_plot(floor_names: np.ndarray, theta: np.ndarray) -> go.Figure:
         margin=dict(l=10, r=20, t=50, b=20)
     )
     return fig
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# 7. กราฟ Design Response Spectrum — มยผ. 1302 (Soft Clay / Bangkok)
+# ──────────────────────────────────────────────────────────────────────────────
+
+def create_soft_clay_spectrum_plot(
+    Ta: float,
+    T_design: float,
+    Sa_Ta: float,
+    Sa_Tdesign: float,
+) -> go.Figure:
+    """
+    กราฟสเปกตรัม มยผ. 1302 สำหรับพื้นที่ดินเหนียวอ่อนกรุงเทพฯ
+    แสดงรูปทรงแบบ plateau กว้าง (T0=0.3s → TL=1.5s) + เส้น 1/T
+    """
+    from data_loader import SOFT_CLAY_SPECTRUM, get_soft_clay_sa
+
+    p   = SOFT_CLAY_SPECTRUM
+    SDS = p["SDS"]
+    T0  = p["T0"]
+    TL  = p["TL"]
+    SD1eff = p["SD1_eff"]
+
+    T_max = max(4.0, T_design * 1.5, 3.5)
+    T_arr = np.linspace(0.0, T_max, 800)
+    Sa_arr = np.array([get_soft_clay_sa(t) for t in T_arr])
+
+    fig = go.Figure()
+
+    # ── เส้นสเปกตรัม ──
+    fig.add_trace(go.Scatter(
+        x=T_arr, y=Sa_arr, mode='lines',
+        name='Design Spectrum มยผ. 1302 (Soft Clay)',
+        line=dict(color='#dc2626', width=3)
+    ))
+
+    # ── เส้น 1/T reference ──
+    T_hyp = np.linspace(TL, T_max, 200)
+    fig.add_trace(go.Scatter(
+        x=T_hyp, y=SD1eff / T_hyp, mode='lines',
+        name=f'SD1_eff/T = {SD1eff:.2f}/T',
+        line=dict(color='gray', width=1.5, dash='dot')
+    ))
+
+    # ── จุดควบคุม T0, TL ──
+    fig.add_trace(go.Scatter(
+        x=[T0, TL], y=[SDS, SDS], mode='markers+text',
+        name=f'T₀ = {T0} s,  TL = {TL} s',
+        text=[f'T₀ = {T0} s', f'TL = {TL} s'],
+        textposition=['top right', 'top left'],
+        marker=dict(color='#b91c1c', size=9, symbol='circle')
+    ))
+
+    # ── จุด Ta ──
+    fig.add_trace(go.Scatter(
+        x=[Ta], y=[Sa_Ta], mode='markers+text',
+        name=f'Ta = {Ta:.3f} s',
+        text=[f'Ta = {Ta:.2f} s<br>Sa = {Sa_Ta:.3f} g'],
+        textposition='top right',
+        marker=dict(color='#f97316', size=13, symbol='star',
+                    line=dict(width=2, color='DarkSlateGrey'))
+    ))
+
+    # ── จุด T_design = Cu·Ta ──
+    if abs(T_design - Ta) > 0.001:
+        fig.add_trace(go.Scatter(
+            x=[T_design], y=[Sa_Tdesign], mode='markers+text',
+            name=f'T_design = Cu·Ta = {T_design:.3f} s',
+            text=[f'T_design = {T_design:.2f} s<br>Sa = {Sa_Tdesign:.3f} g'],
+            textposition='top left',
+            marker=dict(color='#7c3aed', size=11, symbol='diamond',
+                        line=dict(width=1.5, color='DarkSlateGrey'))
+        ))
+
+    # ── Zone annotation ──
+    fig.add_vrect(x0=T0, x1=TL, fillcolor='rgba(220,38,38,0.06)',
+                  line_width=0,
+                  annotation_text="Plateau (ดินอ่อน)",
+                  annotation_position="top left",
+                  annotation_font_color="#991b1b")
+
+    fig.update_layout(
+        title="<b>กราฟความเร่งตอบสนองเชิงสเปกตรัม — มยผ. 1302 (พื้นที่ดินเหนียวอ่อน กทม.)</b>",
+        xaxis_title="<b>คาบเวลา T (วินาที)</b>",
+        yaxis_title="<b>Sa (g)</b>",
+        hovermode="x unified",
+        template="plotly_white",
+        legend=dict(yanchor="top", y=0.99, xanchor="right", x=0.99,
+                    bgcolor="rgba(255,255,255,0.8)", bordercolor="Black", borderwidth=1),
+        xaxis=dict(showgrid=True, gridwidth=1, gridcolor='LightGray',
+                   zeroline=True, zerolinecolor='Black'),
+        yaxis=dict(showgrid=True, gridwidth=1, gridcolor='LightGray',
+                   zeroline=True, zerolinecolor='Black', rangemode='tozero'),
+    )
+    return fig
