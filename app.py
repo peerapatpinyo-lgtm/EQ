@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import io
+import plotly.graph_objects as go
 from scipy.interpolate import interp1d
 
 # ==========================================
@@ -249,18 +250,73 @@ with tab2:
 
 # ----------------- TAB 3 -----------------
 with tab3:
-    st.header("📈 กราฟความเร่งตอบสนองเชิงสเปกตรัม")
+    st.header("📈 กราฟความเร่งตอบสนองเชิงสเปกตรัม (Response Spectrum)")
+    
     if sdc == 'ก':
         st.info("💡 อาคารประเภท 'ก' ไม่จำเป็นต้องใช้วิธีกราฟสเปกตรัมตอบสนองในการคำนวณแรงเฉือน (แต่แสดงกราฟไว้เพื่อเป็นข้อมูลอ้างอิง)")
         
-    T_values = np.linspace(0.0, max(4.0, Ta * 1.5), 300)
+    # สร้างข้อมูลแกน X ให้ละเอียดขึ้นและครอบคลุมคาบเวลาอาคาร
+    T_values = np.linspace(0.0, max(4.0, Ta * 1.5, TS * 2), 500) 
     Sa_values = np.piecewise(
         T_values,
         [T_values < T0, (T0 <= T_values) & (T_values <= TS), T_values > TS],
         [lambda T: SDS * (0.4 + 0.6 * (T / T0)), SDS, lambda T: SD1 / T]
     )
-    chart_data = pd.DataFrame({'คาบเวลา T (sec)': T_values, 'Sa (g)': Sa_values})
-    st.line_chart(chart_data.set_index('คาบเวลา T (sec)'), use_container_width=True)
+    
+    # คำนวณค่า Sa เฉพาะจุดที่คาบเวลาอาคาร Ta ตกอยู่
+    if Ta < T0:
+        Sa_Ta = SDS * (0.4 + 0.6 * (Ta / T0))
+    elif Ta <= TS:
+        Sa_Ta = SDS
+    else:
+        Sa_Ta = SD1 / Ta if Ta > 0 else 0
+
+    # --- สร้างกราฟด้วย Plotly ---
+    fig = go.Figure()
+    
+    # 1. เส้นกราฟ Response Spectrum หลัก
+    fig.add_trace(go.Scatter(
+        x=T_values, y=Sa_values, 
+        mode='lines', name='Design Spectrum', 
+        line=dict(color='#1f77b4', width=3)
+    ))
+    
+    # 2. มาร์กจุด T0 และ TS
+    if SDS > 0:
+        fig.add_trace(go.Scatter(
+            x=[T0, TS], y=[SDS, SDS], 
+            mode='markers', name='จุดควบคุม (T0, TS)', 
+            marker=dict(color='red', size=8, symbol='circle')
+        ))
+    
+    # 3. มาร์กจุดคาบเวลาของอาคาร (Ta) ด้วยรูปดาว
+    fig.add_trace(go.Scatter(
+        x=[Ta], y=[Sa_Ta], 
+        mode='markers+text', name='จุดพิกัดอาคาร (Ta)', 
+        text=[f'Ta = {Ta:.2f} s<br>Sa = {Sa_Ta:.3f} g'], 
+        textposition="top right",
+        marker=dict(color='#ff7f0e', size=14, symbol='star', line=dict(width=2, color='DarkSlateGrey'))
+    ))
+
+    # 4. ปรับแต่ง Layout ของกราฟให้ดูสวยงาม
+    fig.update_layout(
+        title="<b>กราฟความเร่งสเปกตรัมตอบสนองสำหรับการออกแบบ (Design Response Spectrum)</b>",
+        xaxis_title="<b>คาบเวลาโครงสร้าง, T (วินาที)</b>",
+        yaxis_title="<b>ความเร่งตอบสนองเชิงสเปกตรัม, Sa (g)</b>",
+        hovermode="x unified",
+        template="plotly_white",
+        legend=dict(
+            yanchor="top", y=0.99, 
+            xanchor="right", x=0.99,
+            bgcolor="rgba(255, 255, 255, 0.8)",
+            bordercolor="Black", borderwidth=1
+        ),
+        xaxis=dict(showgrid=True, gridwidth=1, gridcolor='LightGray', zeroline=True, zerolinecolor='Black'),
+        yaxis=dict(showgrid=True, gridwidth=1, gridcolor='LightGray', zeroline=True, zerolinecolor='Black', rangemode='tozero')
+    )
+    
+    # แสดงกราฟใน Streamlit
+    st.plotly_chart(fig, use_container_width=True)
 
 # ----------------- TAB 4 -----------------
 with tab4:
