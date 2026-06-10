@@ -151,7 +151,7 @@ def compute_spectrum_sa(T: float, SDS: float, SD1: float, T0: float, TS: float) 
 # ──────────────────────────────────────────────────────────────────────────────
 
 def compute_cs(SDS: float, SD1: float, S1: float, T_design: float,
-               R: float, Ie: float) -> dict[str, float]:
+               R: float, Ie: float, TS: float = 0.0) -> dict[str, float]:
     """
     คำนวณ Cs ตามมาตรา 12.8.1.1 มยผ.
 
