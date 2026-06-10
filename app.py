@@ -649,11 +649,3 @@ with tab5:
     
     # 3. แสดงผล Flowchart
     st.graphviz_chart(pro_flowchart_dot, use_container_width=True)
-
-    # 4. ปุ่มและคำแนะนำสำหรับการพิมพ์
-    st.divider()
-    col_btn, col_info = st.columns([1, 3])
-    with col_btn:
-        st.button("🖨️ พิมพ์เอกสารสรุป (Print PDF)", type="primary", use_container_width=True)
-    with col_info:
-        st.info("💡 **คำแนะนำ:** การจัดเรียงและโทนสีถูกปรับให้รองรับการสั่งพิมพ์บนกระดาษ A4 (รวมถึงการพิมพ์แบบขาว-ดำ) โดยไม่สูญเสียความคมชัด กด `Ctrl + P` เพื่อพิมพ์หรือจัดเก็บเป็น PDF ได้ทันที")
