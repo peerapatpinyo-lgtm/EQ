@@ -646,3 +646,121 @@ with tab5:
     
     # 3. แสดงผล Flowchart
     st.graphviz_chart(pro_flowchart_dot, use_container_width=True)
+
+# ───────────────────────────────────────────────────────────────────────────
+# TAB 6: แผนผังกระบวนการวิเคราะห์ทางพลศาสตร์ (Dynamic Analysis Flowchart)
+# ───────────────────────────────────────────────────────────────────────────
+with tab_dynamic:
+    st.header("📋 แผนผังพารามิเตอร์การวิเคราะห์ทางพลศาสตร์ (Dynamic Analysis Summary)")
+
+    # 1. ดักจับและเตรียมข้อมูลสำหรับการวิเคราะห์แบบ Response Spectrum
+    # (เปลี่ยนตัวแปรให้ตรงกับในโค้ดจริงของคุณ)
+    _SDS = f"{SDS:.3f}" if 'SDS' in locals() else "-"
+    _SD1 = f"{SD1:.3f}" if 'SD1' in locals() else "-"
+    _Ts = f"{Ts:.3f}" if 'Ts' in locals() else "-"
+    
+    _T1 = f"{T1:.3f}" if 'T1' in locals() else "รอข้อมูล"
+    _modes = f"{num_modes}" if 'num_modes' in locals() else "-"
+    _mass_part = f"{mass_part:.1f}" if 'mass_part' in locals() else "รอข้อมูล"
+    
+    _V_static = f"{V_static:,.2f}" if 'V_static' in locals() else "รอข้อมูล"
+    _V_dynamic = f"{V_dynamic:,.2f}" if 'V_dynamic' in locals() else "รอข้อมูล"
+    _scale_factor = f"{scale_factor:.3f}" if 'scale_factor' in locals() else "-"
+    
+    limit_pct = (0.010 if importance_factor >= 1.5 else (0.015 if importance_factor >= 1.25 else 0.020)) * 100 if 'importance_factor' in locals() else 1.5
+
+    # ประเมินสถานะการมีส่วนร่วมของมวล (Mass Participation >= 90%)
+    if 'mass_part' in locals():
+        mass_status_color = "#166534" if mass_part >= 90.0 else "#991B1B" # เขียว / แดง
+        mass_bg_color = "#F0FDF4" if mass_part >= 90.0 else "#FEF2F2"
+    else:
+        mass_status_color = "#0F172A"
+        mass_bg_color = "#FFFFFF"
+
+    # ประเมินสถานะระยะโยกตัว
+    if 'dynamic_status' in locals() and len(dynamic_status) > 0:
+        overall_drift = "❌ ไม่ผ่านเกณฑ์ (FAIL)" if "❌ FAIL" in dynamic_status else "✅ ผ่านเกณฑ์ (PASS)"
+        drift_color = "#991B1B" if "FAIL" in overall_drift else "#166534" 
+    else:
+        overall_drift = "รอผลการคำนวณ"
+        drift_color = "#475569"
+
+    # 2. สร้าง Graphviz DOT สำหรับ Dynamic Analysis (Modern UI Style)
+    dynamic_flowchart_dot = f"""
+    digraph DynamicSummary {{
+        rankdir=TB;
+        nodesep=0.8;
+        ranksep=0.6;
+        bgcolor="transparent";
+        splines=ortho;
+        pad=0.5;
+
+        node [shape=plaintext, fontname="Helvetica, Arial, Tahoma, sans-serif", fontsize=12];
+        edge [color="#94A3B8", penwidth=2, arrowsize=0.7]; 
+
+        // 🎯 CARD 1: สเปกตรัมตอบสนอง
+        Card_Spectrum [label=<
+            <TABLE BORDER="1" CELLBORDER="1" CELLSPACING="0" CELLPADDING="10" COLOR="#CBD5E1" STYLE="ROUNDED">
+                <TR><TD BGCOLOR="#0F172A" COLSPAN="4"><FONT COLOR="#FFFFFF" POINT-SIZE="13"><B>📈 1. พารามิเตอร์สเปกตรัมตอบสนอง (Response Spectrum)</B></FONT></TD></TR>
+                <TR>
+                    <TD ALIGN="LEFT" BGCOLOR="#F8FAFC"><FONT COLOR="#475569">S<SUB>DS</SUB> (g):</FONT></TD><TD BGCOLOR="#FFFFFF"><FONT COLOR="#0F172A"><B>{_SDS}</B></FONT></TD>
+                    <TD ALIGN="LEFT" BGCOLOR="#F8FAFC"><FONT COLOR="#475569">S<SUB>D1</SUB> (g):</FONT></TD><TD BGCOLOR="#FFFFFF"><FONT COLOR="#0F172A"><B>{_SD1}</B></FONT></TD>
+                </TR>
+                <TR>
+                    <TD ALIGN="LEFT" BGCOLOR="#F8FAFC"><FONT COLOR="#475569">คาบเวลา T<SUB>0</SUB> (s):</FONT></TD><TD BGCOLOR="#FFFFFF"><FONT COLOR="#0F172A"><B>{f"{0.2 * float(_Ts):.3f}" if _Ts != "-" else "-"}</B></FONT></TD>
+                    <TD ALIGN="LEFT" BGCOLOR="#F8FAFC"><FONT COLOR="#475569">คาบเวลา T<SUB>S</SUB> (s):</FONT></TD><TD BGCOLOR="#FFFFFF"><FONT COLOR="#0F172A"><B>{_Ts}</B></FONT></TD>
+                </TR>
+            </TABLE>
+        >];
+
+        // 🎯 CARD 2: การวิเคราะห์โหมดและการมีส่วนร่วมของมวล
+        Card_Modal [label=<
+            <TABLE BORDER="1" CELLBORDER="1" CELLSPACING="0" CELLPADDING="10" COLOR="#CBD5E1" STYLE="ROUNDED">
+                <TR><TD BGCOLOR="#0F172A" COLSPAN="2"><FONT COLOR="#FFFFFF" POINT-SIZE="13"><B>🏢 2. การวิเคราะห์โหมด (Modal Analysis)</B></FONT></TD></TR>
+                <TR><TD ALIGN="LEFT" BGCOLOR="#F8FAFC"><FONT COLOR="#475569">คาบเวลาโหมดที่ 1 (T<SUB>1</SUB>):</FONT></TD><TD BGCOLOR="#FFFFFF"><FONT COLOR="#0F172A"><B>{_T1} s.</B></FONT></TD></TR>
+                <TR><TD ALIGN="LEFT" BGCOLOR="#F8FAFC"><FONT COLOR="#475569">จำนวนโหมดที่วิเคราะห์ (N):</FONT></TD><TD BGCOLOR="#FFFFFF"><FONT COLOR="#0F172A"><B>{_modes} โหมด</B></FONT></TD></TR>
+                <TR><TD ALIGN="LEFT" BGCOLOR="#F8FAFC"><FONT COLOR="#475569">มวลที่เข้าร่วม (Mass Part. ≥ 90%):</FONT></TD><TD BGCOLOR="{mass_bg_color}"><FONT COLOR="{mass_status_color}"><B>{_mass_part}%</B></FONT></TD></TR>
+            </TABLE>
+        >];
+
+        // 🎯 CARD 3: การปรับแก้แรงเฉือนที่ฐาน
+        Card_Scaling [label=<
+            <TABLE BORDER="1" CELLBORDER="1" CELLSPACING="0" CELLPADDING="10" COLOR="#CBD5E1" STYLE="ROUNDED">
+                <TR><TD BGCOLOR="#0F172A" COLSPAN="2"><FONT COLOR="#FFFFFF" POINT-SIZE="13"><B>⚖️ 3. การปรับแก้แรงเฉือนที่ฐาน (Base Shear Scaling)</B></FONT></TD></TR>
+                <TR><TD ALIGN="LEFT" BGCOLOR="#F8FAFC"><FONT COLOR="#475569">แรงเฉือนสถิตยศาสตร์ (V<SUB>static</SUB>):</FONT></TD><TD BGCOLOR="#FFFFFF"><FONT COLOR="#0F172A"><B>{_V_static} ตัน</B></FONT></TD></TR>
+                <TR><TD ALIGN="LEFT" BGCOLOR="#F8FAFC"><FONT COLOR="#475569">แรงเฉือนพลศาสตร์ (V<SUB>dynamic</SUB>):</FONT></TD><TD BGCOLOR="#FFFFFF"><FONT COLOR="#0F172A"><B>{_V_dynamic} ตัน</B></FONT></TD></TR>
+                <TR><TD ALIGN="LEFT" BGCOLOR="#F8FAFC"><FONT COLOR="#475569">ตัวคูณปรับแก้ (Scale Factor):</FONT></TD><TD BGCOLOR="#FFFBEB"><FONT COLOR="#D97706"><B>{_scale_factor}</B></FONT></TD></TR>
+            </TABLE>
+        >];
+
+        // 🎯 CARD 4: การรวมผลตอบสนอง
+        Card_Effects [label=<
+            <TABLE BORDER="1" CELLBORDER="1" CELLSPACING="0" CELLPADDING="10" COLOR="#CBD5E1" STYLE="ROUNDED">
+                <TR><TD BGCOLOR="#0F172A" COLSPAN="2"><FONT COLOR="#FFFFFF" POINT-SIZE="13"><B>🔄 4. การรวมผลตอบสนอง (Combination Rules)</B></FONT></TD></TR>
+                <TR><TD ALIGN="LEFT" BGCOLOR="#F8FAFC"><FONT COLOR="#475569">ทิศทางร่วม (Modal Comb.):</FONT></TD><TD BGCOLOR="#FFFFFF"><FONT COLOR="#0F172A"><B>CQC</B></FONT></TD></TR>
+                <TR><TD ALIGN="LEFT" BGCOLOR="#F8FAFC"><FONT COLOR="#475569">แรงตั้งฉาก (Orthogonal):</FONT></TD><TD BGCOLOR="#FFFFFF"><FONT COLOR="#0F172A">100% / 30%</FONT></TD></TR>
+            </TABLE>
+        >];
+
+        // 🎯 CARD 5: การตรวจสอบเสถียรภาพ (Dynamic)
+        Card_Drift [label=<
+            <TABLE BORDER="1" CELLBORDER="1" CELLSPACING="0" CELLPADDING="10" COLOR="#CBD5E1" STYLE="ROUNDED">
+                <TR><TD BGCOLOR="#0F172A" COLSPAN="2"><FONT COLOR="#FFFFFF" POINT-SIZE="13"><B>🛡️ 5. การประเมินระยะโยกตัว (Dynamic Drift)</B></FONT></TD></TR>
+                <TR><TD ALIGN="LEFT" BGCOLOR="#F8FAFC"><FONT COLOR="#475569">เกณฑ์ขีดจำกัด (Limit):</FONT></TD><TD BGCOLOR="#FFFFFF"><FONT COLOR="#0F172A"><B>{limit_pct:.1f}%</B></FONT></TD></TR>
+                <TR><TD ALIGN="LEFT" BGCOLOR="#F8FAFC"><FONT COLOR="#475569">สถานะความปลอดภัย:</FONT></TD><TD BGCOLOR="{drift_color}"><FONT COLOR="#FFFFFF"><B>{overall_drift}</B></FONT></TD></TR>
+            </TABLE>
+        >];
+
+        // 🔗 เชื่อมโยง Flow
+        Card_Spectrum -> Card_Modal;
+        Card_Modal -> Card_Scaling;
+        Card_Scaling -> Card_Effects;
+        Card_Scaling -> Card_Drift;
+        
+        // จัดให้ Effects กับ Drift อยู่ระดับเดียวกัน (Rank)
+        {{ rank=same; Card_Effects; Card_Drift; }}
+    }}
+    """
+    
+    # 3. แสดงผล Flowchart
+    st.graphviz_chart(dynamic_flowchart_dot, use_container_width=True)
