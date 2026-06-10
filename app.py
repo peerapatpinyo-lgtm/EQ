@@ -184,17 +184,66 @@ with tab2:
         st.error(f"🏆 ผลลัพธ์ที่ควบคุมการออกแบบ (Governing SDC) คือ: **ประเภท '{sdc}'**")
 
 # ─────────────────────────── TAB 3 ───────────────────────────
+# ─────────────────────────── TAB 3 ───────────────────────────
 with tab3:
-    st.header("📈 กราฟความเร่งตอบสนองเชิงสเปกตรัม (Response Spectrum)")
+    st.header("📈 กราฟความเร่งตอบสนองเชิงสเปกตรัม (Design Response Spectrum)")
+    
     if sdc == 'ก':
-        st.info("💡 อาคารประเภท 'ก' ไม่จำเป็นต้องวิเคราะห์สเปกตรัม (แสดงไว้เพื่อเป็นข้อมูลอ้างอิง)")
+        st.info("💡 อาคารประเภท 'ก' มีความเสี่ยงภัยต่ำมาก ไม่จำเป็นต้องวิเคราะห์สเปกตรัม (กราฟด้านล่างแสดงไว้เพื่อเป็นข้อมูลอ้างอิงเท่านั้น)")
+        
+    st.markdown("กราฟแสดงความสัมพันธ์ระหว่างคาบเวลาการแกว่งตัวของโครงสร้าง ($T$) และความเร่งตอบสนองเชิงสเปกตรัม ($S_a$) ตามที่ระบุในมาตรฐาน มยผ. 1301/1302")
 
-    T_values = np.linspace(0.0, max(4.0, Ta * 1.5, TS * 2), 500)
+    # ปรับแกน X ของกราฟให้ครอบคลุมและดูสวยงามขึ้น
+    max_T_plot = max(4.0, Ta * 1.5, TS * 2.5)
+    T_values = np.linspace(0.0, max_T_plot, 500)
     Sa_values = np.array([calc.compute_spectrum_sa(t, SDS, SD1, T0, TS) for t in T_values])
     Sa_Ta = calc.compute_spectrum_sa(Ta, SDS, SD1, T0, TS)
 
+    # 1. แสดงกราฟ Plotly ที่ปรับปรุงใหม่
     fig_spectrum = plots.create_spectrum_plot(T_values, Sa_values, Ta, Sa_Ta, T0, TS, SDS)
     st.plotly_chart(fig_spectrum, use_container_width=True)
+    
+    # 2. ตารางสรุปพิกัดสำคัญ (Key Coordinates Table)
+    st.subheader("📌 พิกัดจุดสำคัญบนกราฟสเปกตรัม (Key Coordinates)")
+    key_points = pd.DataFrame({
+        "ตำแหน่ง": [
+            "จุดเริ่มต้นคาบสั้น (T = 0)", 
+            f"จุดเริ่มต้นโหมดความเร่งคงที่ (T0 = {T0:.3f})", 
+            f"จุดสิ้นสุดโหมดความเร่งคงที่ (TS = {TS:.3f})", 
+            "จุดคาบยาว (T = 1.000)", 
+            f"🎯 พิกัดอาคารที่ออกแบบ (Ta = {Ta:.3f})"
+        ],
+        "คาบเวลาโครงสร้าง T (วินาที)": [0.0, T0, TS, 1.0, Ta],
+        "ความเร่งเชิงสเปกตรัม Sa (g)": [
+            calc.compute_spectrum_sa(0.0, SDS, SD1, T0, TS), 
+            calc.compute_spectrum_sa(T0, SDS, SD1, T0, TS), 
+            calc.compute_spectrum_sa(TS, SDS, SD1, T0, TS), 
+            calc.compute_spectrum_sa(1.0, SDS, SD1, T0, TS), 
+            Sa_Ta
+        ]
+    })
+    
+    st.dataframe(
+        key_points.style.format({
+            "คาบเวลาโครงสร้าง T (วินาที)": "{:.3f}", 
+            "ความเร่งเชิงสเปกตรัม Sa (g)": "{:.3f}"
+        }).apply(lambda x: ['background: #fff7ed; font-weight: bold' if i == 4 else '' for i in range(len(x))], axis=0), 
+        use_container_width=True, hide_index=True
+    )
+    
+    # 3. กล่องแสดงสมการควบคุมกราฟ
+    with st.expander("🔍 ดูสมการที่ใช้สร้างกราฟสเปกตรัม (Governing Equations)"):
+        st.markdown("กราฟความเร่งตอบสนองเชิงสเปกตรัม แบ่งออกเป็น 3 ช่วง (Piecewise Function) ดังนี้:")
+        col_eq1, col_eq2, col_eq3 = st.columns(3)
+        with col_eq1:
+            st.markdown("**ช่วงที่ 1 ($T < T_0$)**")
+            st.latex(r"S_a = S_{DS} \left( 0.4 + 0.6 \frac{T}{T_0} \right)")
+        with col_eq2:
+            st.markdown("**ช่วงที่ 2 ($T_0 \le T \le T_S$)**")
+            st.latex(r"S_a = S_{DS}")
+        with col_eq3:
+            st.markdown("**ช่วงที่ 3 ($T > T_S$)**")
+            st.latex(r"S_a = \frac{S_{D1}}{T}")
 
 # ─────────────────────────── TAB 4 ───────────────────────────
 with tab4:
