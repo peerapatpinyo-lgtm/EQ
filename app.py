@@ -224,6 +224,7 @@ with tab1:
             st.latex(r"T_S = 0.000 \text{ s}")
             st.latex(r"T_0 = 0.000 \text{ s}")
 
+
 # ----------------- TAB 2 -----------------
 with tab2:
     st.header("🛡️ ผลการประเมินประเภทการออกแบบ (Seismic Design Category)")
@@ -240,36 +241,79 @@ with tab2:
             'title': "ประเภท ข (SDC B) - ความเสี่ยงภัยแผ่นดินไหวต่ำ",
             'analysis': "✅ สามารถใช้วิธีแรงสถิตเทียบเท่า (Equivalent Static) ในการคำนวณได้",
             'detailing': "🔧 ต้องจัดรายละเอียดโครงสร้างให้มีความเหนียวจำกัด (Ordinary Ductility)",
-            'action': "📝 **สิ่งที่ต้องทำต่อ:** คำนวณแรงแผ่นดินไหวตามขั้นตอน และจัดเหล็กเสริมตามมาตรฐานขั้นต่ำสำหรับการต้านทานแรงดัด"
+            'action': "📝 **สิ่งที่ต้องทำต่อ:** ไปที่ Tab 4 เพื่อคำนวณแรงเฉือนที่ฐาน และกระจายแรงเข้าแต่ละชั้น"
         },
         'ค': {
             'title': "ประเภท ค (SDC C) - ความเสี่ยงภัยแผ่นดินไหวปานกลาง",
             'analysis': "⚠️ ใช้วิธีแรงสถิตเทียบเท่าได้เฉพาะอาคารที่มีรูปทรงสม่ำเสมอ (Regular) เท่านั้น",
             'detailing': "🚨 **บังคับ:** โครงสร้างต้องออกแบบให้มีความเหนียวปานกลาง (Intermediate Ductility)",
-            'action': "📝 **สิ่งที่ต้องทำต่อ:** ต้องเพิ่มเหล็กปลอกโอบรัดในบริเวณวิกฤต (เช่น ปลายเสาและคาน) ตามข้อกำหนด มยผ.1301/1302 เพื่อให้โครงสร้างเหนียวพอที่จะโยกตัวได้โดยไม่พังทลาย"
+            'action': "📝 **สิ่งที่ต้องทำต่อ:** เช็กความสม่ำเสมอของรูปทรงอาคารก่อน ถ้าผ่าน ให้คำนวณแรงใน Tab 4 ต่อได้เลย"
         },
         'ง': {
             'title': "ประเภท ง (SDC D) - ความเสี่ยงภัยแผ่นดินไหวสูง (เข้มงวดที่สุด)",
-            'analysis': "❌ **ข้อจำกัด:** หากอาคารมีความไม่สม่ำเสมอ (Irregular) หรือสูงเกินเกณฑ์ *บังคับใช้วิธีวิเคราะห์เชิงพลศาสตร์ (Dynamic Analysis / Response Spectrum)* เท่านั้น",
+            'analysis': "❌ **ข้อจำกัดสูง:** ใช้วิธีแรงสถิตเทียบเท่าได้เฉพาะอาคารทั่วไปที่ 'สม่ำเสมอ' และ 'สูงไม่เกินเกณฑ์' เท่านั้น",
             'detailing': "🚨 **บังคับขั้นสูงสุด:** โครงสร้างต้องออกแบบให้มีความเหนียวสูง (Special Ductility)",
-            'action': "📝 **สิ่งที่ต้องทำต่อ:** ต้องใช้ระบบโครงสร้างต้านทานแรงดัดความเหนียวสูง (Special Moment Frame), บังคับใช้เหล็กปลอกแผ่นดินไหวถี่เป็นพิเศษ, มีข้อจำกัดเรื่องระยะทาบเหล็ก และห้ามใช้ระบบโครงสร้างบางประเภทที่เปราะบาง"
+            'action': "📝 **สิ่งที่ต้องทำต่อ:** ต้องประเมินความไม่สม่ำเสมอ (Irregularity) อย่างละเอียด หากไม่ผ่าน บังคับส่งต่อไปวิธีพลศาสตร์ทันที!"
         }
     }
 
-    # 2. แสดงกล่องแจ้งเตือนหลักตามผลลัพธ์สุดท้าย
+    # แสดงข้อสรุปภาพรวม
     if sdc == 'ก':
         st.success(f"✅ **อาคารนี้จัดอยู่ในประเภทการออกแบบสุดท้าย: '{sdc}'**")
+        st.markdown(f"👉 {sdc_actions[sdc]['action']}")
     else:
         st.warning(f"⚠️ **อาคารนี้จัดอยู่ในประเภทการออกแบบสุดท้าย: '{sdc}'**")
-        st.markdown(f"👉 **ข้อสรุปภาพรวม:** {sdc_actions[sdc]['action']}")
+        st.markdown(f"👉 **ทิศทางการออกแบบถัดไป:** {sdc_actions[sdc]['action']}")
 
     st.markdown("---")
 
-    # 3. กล่องขยายแสดงวิธีคิดและที่มาแบบละเอียด
-    with st.expander("🔍 ดูที่มาและข้อบังคับแยกตามพารามิเตอร์ (Breakdown)", expanded=True):
+    # 🗺️ เพิ่มส่วนแผนผังเส้นทางการออกแบบ (Roadmap Map)
+    st.subheader("🗺️ แผนผังเส้นทางการไปต่อ (Design Method Roadmap)")
+    st.markdown("คลิกขยายแถบด้านล่างเพื่อดูแผนผังการตัดสินใจว่าโครงสร้างของคุณต้องวิ่งไปที่วิธีใดตามมาตรฐาน มยผ.")
+    
+    # สร้างโครงสร้างต้นไม้การตัดสินใจด้วย Graphviz (รองรับภาษาไทยในตัว)
+    roadmap_dot = f"""
+    digraph G {{
+        graph [rankdir=TB, bgcolor="transparent"]
+        node [fontname="ChulaCharasNew, Tahoma, Arial", shape=box, style="filled,rounded", color="#2c3e50", fontcolor="white", fillcolor="#34495e", fontsize=11]
+        edge [fontname="ChulaCharasNew, Tahoma, Arial", color="#7f8c8d", fontsize=10]
+
+        // Nodes Definition
+        start [label="📌 ได้ผลลัพธ์ SDC", fillcolor="#2980b9"]
+        sdc_a [label="ประเภท ก", fillcolor="#27ae60"]
+        sdc_b [label="ประเภท ข", fillcolor="#f39c12"]
+        sdc_c [label="ประเภท ค", fillcolor="#d35400"]
+        sdc_d [label="ประเภท ง", fillcolor="#c0392b"]
+        
+        static_ok [label="🟢 ลุยต่อด้วยวิธีแรงสถิตเทียบเท่า\\n(Equivalent Static Procedure)\\n[ไปที่ Tab 4]", fillcolor="#2ecc71", fontcolor="black"]
+        check_reg [label="🔍 ตรวจสอบรูปทรงอาคาร\\n(Structural Regularity)", fillcolor="#f1c40f", fontcolor="black"]
+        
+        dynamic_req [label="🛑 บังคับใช้วิธีพลศาสตร์เท่านั้น\\n(Dynamic Analysis เช่น Response Spectrum)\\n*ไม่สามารถใช้โปรแกรมสถิตนี้ต่อได้*", fillcolor="#e74c3c"]
+
+        // Relations
+        start -> sdc_a [label=" SDC A"]
+        start -> sdc_b [label=" SDC B"]
+        start -> sdc_c [label=" SDC C"]
+        start -> sdc_d [label=" SDC D"]
+
+        sdc_a -> static_ok [label=" คิดแรงข้างขั้นต่ำ 1%W"]
+        sdc_b -> static_ok [label=" ใช้ได้เกือบทุกกรณี"]
+        
+        sdc_c -> check_reg
+        sdc_d -> check_reg
+        
+        check_reg -> static_ok [label=" โครงสร้างสม่ำเสมอ\\nและสูงไม่เกินเกณฑ์"]
+        check_reg -> dynamic_req [label=" โครงสร้างไม่สม่ำเสมอ\\nหรือสูงเกินเกณฑ์"]
+    }}
+    """
+    st.graphviz_chart(roadmap_dot)
+
+    st.markdown("---")
+
+    # 3. กล่องขยายแสดงวิธีคิดแบบละเอียดเดิม
+    with st.expander("🔍 ดูที่มาและข้อบังคับแยกตามพารามิเตอร์อย่างละเอียด", expanded=False):
         st.markdown(f"**ปัจจัยร่วม:** ตัวคูณความสำคัญของอาคาร ($I_e$) = **{importance_factor}**")
         
-        # แสดงตารางอ้างอิง Ie
         ie_data = {
             "ระดับความสำคัญ": ["อาคารทั่วไป", "อาคารความสำคัญสูง", "อาคารความสำคัญสูงมาก"],
             "ค่า Ie": ["1.00", "1.25", "1.50"],
@@ -283,9 +327,7 @@ with tab2:
         
         st.divider()
         
-        # ส่วนแสดงผลแยก 2 ขา (SDS และ SD1) ตามที่ผู้ใช้ระบุ
         col_sdc1, col_sdc2 = st.columns(2)
-        
         with col_sdc1:
             st.markdown(f"### 1. พิจารณาจากความเร่งคาบสั้น ($S_{{DS}}$)")
             st.markdown(f"📉 ค่าที่ได้: $S_{{DS}} =$ **{SDS:.3f} g**")
