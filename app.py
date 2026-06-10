@@ -371,7 +371,7 @@ with tab4:
     # ── Cs ────────────────────────────────────────────────────────────────────
     st.subheader("ขั้นที่ 2 — สัมประสิทธิ์แรงเฉือนที่ฐาน Cs")
 
-    cs = calc.compute_cs(SDS, SD1, S1, T_design, R_sys, importance_factor)
+    cs = calc.compute_cs(SDS, SD1, S1, T_design, R_sys, importance_factor, TS)
 
     with st.container(border=True):
         st.markdown("**สูตรและผลลัพธ์ Cs**")
