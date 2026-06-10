@@ -262,12 +262,22 @@ with tab3:
             st.latex(r"S_a = \frac{S_{D1}}{T}")
             st.caption("อาคารสูง/ยืดหยุ่น ความเร่งลดลงแต่ระยะโยกตัวเพิ่มสูงขึ้น")
 
-# ─────────────────────────── TAB 4 ───────────────────────────
+
+# ───────────────────────────────────────────────────────────────────────────
+# TAB 4: การวิเคราะห์โครงสร้างด้วยวิธีแรงสถิตเทียบเท่า (Equivalent Static Procedure)
+# ───────────────────────────────────────────────────────────────────────────
 with tab4:
     st.header("🏢 วิธีแรงสถิตเทียบเท่า (Equivalent Static Procedure)")
-    st.markdown("ระบบคำนวณกระจายแรงแผ่นดินไหว และตรวจสอบเสถียรภาพอาคารตามมาตรฐาน **มยผ. 1301/1302**")
+    st.markdown("""
+    ระบบคำนวณการกระจายแรงแผ่นดินไหวตามแนวดิ่ง และประเมินเสถียรภาพการโยกตัวของอาคารตามมาตรฐาน **มยผ. 1301/1302-61**
+    *(วิธีนี้เหมาะสำหรับอาคารที่มีรูปทรงสม่ำเสมอและมีความสูงอยู่ในเกณฑ์ที่มาตรฐานกำหนด)*
+    """)
 
-    st.subheader("⚡ สเต็ปที่ 1: กำหนดสัมประสิทธิ์โครงสร้าง")
+    # ==========================================
+    # สเต็ปที่ 1: การกำหนดระบบโครงสร้างและคำนวณสัมประสิทธิ์ Cs
+    # ==========================================
+    st.subheader("⚡ สเต็ปที่ 1: กำหนดสัมประสิทธิ์โครงสร้างและตรวจสอบค่า Cs ตัวควบคุม")
+    
     structural_systems = {
         "โครงนำแรงดัด คสล. ความเหนียวสูง (SMF)":              {"R": 8.0, "Omega": 3.0, "Cd": 5.5},
         "โครงนำแรงดัด คสล. ความเหนียวปานกลาง (IMF)":           {"R": 5.0, "Omega": 3.0, "Cd": 4.5},
@@ -281,26 +291,50 @@ with tab4:
     Omega0  = structural_systems[selected_system]["Omega"]
     Cd      = structural_systems[selected_system]["Cd"]
 
-    # คำนวณค่าสัมประสิทธิ์แรงบิดตอบสนอง Cs ตัวควบคุมตามเกณฑ์มาตรฐาน
+    # คำนวณขีดจำกัดสัมประสิทธิ์ผลตอบสนองแผ่นดินไหว (Cs) ตามกฎหมายควบคุมอาคาร
     Cs_tab4_basic = SDS / (R_sys / importance_factor) if R_sys > 0 else 0.0
     Cs_tab4_max   = SD1 / (Ta * (R_sys / importance_factor)) if (Ta > 0 and R_sys > 0) else Cs_tab4_basic
     Cs_tab4_min   = 0.01
     if S1 >= 0.6:
         Cs_tab4_min = max(Cs_tab4_min, (0.5 * S1) / (R_sys / importance_factor))
+    
+    # ค่า Cs ที่ใช้จริง (Governing Cs)
     Cs_gov = max(Cs_tab4_min, min(Cs_tab4_basic, Cs_tab4_max))
 
-    # แสดงพารามิเตอร์แบบการ์ด Metric
+    # แสดงพารามิเตอร์หลักผ่านระบบ Metric Layout ให้เห็นชัดเจน
     col_m1, col_m2, col_m3, col_m4 = st.columns(4)
-    col_m1.metric("ลดแรงออกแบบ (R)", f"{R_sys}")
-    col_m2.metric("เพิ่มกำลังส่วนวิกฤต (Ω₀)", f"{Omega0}")
-    col_m3.metric("ขยายระยะโยก (Cd)", f"{Cd}")
-    col_m4.metric("แรงเฉือนที่ฐาน (Cs)", f"{Cs_gov:.4f}")
+    col_m1.metric("ตัวคูณลดแรงออกแบบ (R)", f"{R_sys:.1f}")
+    col_m2.metric("ตัวคูณเพิ่มกำลังส่วนวิกฤต (Ω₀)", f"{Omega0:.1f}")
+    col_m3.metric("ตัวคูณขยายระยะโยก (Cd)", f"{Cd:.1f}")
+    col_m4.metric("สัมประสิทธิ์แรงเฉือนที่ฐาน (Cs)", f"{Cs_gov:.4f}")
+
+    # แสดงที่มาของ Cs เพื่อให้วิศวกรใช้ตรวจสอบความถูกต้อง (Engineering Transparency)
+    with st.expander("🔍 ดูรายละเอียดเกณฑ์ขีดจำกัดสัมประสิทธิ์ Cs (Seismic Response Coefficient Limits)"):
+        col_cs1, col_cs2 = st.columns(2)
+        with col_cs1:
+            st.markdown("**สมการควบคุมตาม มยผ. 1302:**")
+            st.latex(r"C_{s,\text{basic}} = \frac{S_{DS}}{R / I_e}")
+            st.latex(r"C_{s,\text{max}} = \frac{S_{D1}}{T_a (R / I_e)}")
+            st.latex(r"C_{s,\text{min}} = 0.01 \quad \left(\text{หรือ } \frac{0.5 S_1}{R / I_e} \text{ ถ้า } S_1 \ge 0.6g\right)")
+        with col_cs2:
+            st.markdown("**ค่าที่คำนวณได้รายสมการ:**")
+            st.write(f"• $C_{{s,\\text{{basic}}}}$ = `{Cs_tab4_basic:.4f}`")
+            st.write(f"• $C_{{s,\\text{{max}}}}$ = `{Cs_tab4_max:.4f}` *(ขีดจำกัดบน)*")
+            st.write(f"• $C_{{s,\\text{{min}}}}$ = `{Cs_tab4_min:.4f}` *(ขีดจำกัดล่าง)*")
+            st.info(f"🎯 **ค่าควบคุมที่เลือกใช้:** $C_s$ = **{Cs_gov:.4f}** (ผ่านการคัดกรองตามข้อกำหนดแล้ว)")
+
     st.divider()
 
-    sub_tab1, sub_tab2 = st.tabs(["🏗️ 1. รายงานการคำนวณแรงประจำชั้น", "📏 2. รายงานการตรวจสอบการโยกตัว"])
+    # ==========================================
+    # สเต็ปที่ 2: แท็บย่อยรายงานผลคำนวณและประเมินระบบ
+    # ==========================================
+    sub_tab1, sub_tab2 = st.tabs(["🏗️ 1. รายงานการคำนวณแรงประจำชั้น", "📏 2. รายงานการตรวจสอบการโยกตัวระหว่างชั้น"])
 
+    # --- แท็บย่อยที่ 1: การกระจายแรงตามแนวดิ่ง ---
     with sub_tab1:
-        st.markdown("##### 📝 กรอกข้อมูลมิติอาคาร (เรียงจากชั้นบนสุดลงล่างสุด)")
+        st.markdown("##### 📝 ข้อมูลมิติและน้ำหนักอาคารรายชั้น (กรอกเรียงจาก ชั้นบนสุด ลงไป ชั้นล่างสุด)")
+        
+        # ตารางตั้งต้นที่ผู้ใช้สามารถแก้ไข เพิ่ม หรือลบชั้นได้อิสระ
         default_stories = pd.DataFrame([
             {"ชื่อชั้น (Floor)": "ชั้น 4 (ดาดฟ้า)", "ความสูงสะสม hx (ม.)": 14.0, "น้ำหนักรวม wx (ตัน)": 150.0},
             {"ชื่อชั้น (Floor)": "ชั้น 3",           "ความสูงสะสม hx (ม.)": 10.5, "น้ำหนักรวม wx (ตัน)": 200.0},
@@ -311,83 +345,111 @@ with tab4:
         edited_df = st.data_editor(
             default_stories, num_rows="dynamic", use_container_width=True,
             column_config={
-                "ชื่อชั้น (Floor)": st.column_config.TextColumn("ชื่อชั้น (Floor)", required=True),
-                "ความสูงสะสม hx (ม.)": st.column_config.NumberColumn("ความสูงสะสม hx (ม.)", min_value=0.0, format="%.2f", required=True),
-                "น้ำหนักรวม wx (ตัน)": st.column_config.NumberColumn("น้ำหนักรวม wx (ตัน)", min_value=0.0, format="%.2f", required=True),
+                "ชื่อชั้น (Floor)": st.column_config.TextColumn("ชื่อชั้น (Floor)", required=True, help="ระบุชื่อเรียกชั้น เช่น Floor 1, Roof"),
+                "ความสูงสะสม hx (ม.)": st.column_config.NumberColumn("ความสูงสะสม hx (ม.)", min_value=0.0, format="%.2f", required=True, help="ความสูงวัดจากฐานหรือจุดรองรับถึงระดับชั้นนั้นๆ"),
+                "น้ำหนักรวม wx (ตัน)": st.column_config.NumberColumn("น้ำหนักรวม wx (ตัน)", min_value=0.0, format="%.2f", required=True, help="น้ำหนักบรรทุกคงที่รวมกับน้ำหนักบรรทุกจรตามสัดส่วนที่มาตรฐานกำหนด"),
             }, key="force_editor"
         )
 
         clean_df = edited_df.dropna(subset=["ความสูงสะสม hx (ม.)", "น้ำหนักรวม wx (ตัน)"]).copy()
 
         if clean_df.empty:
-            st.warning("⚠️ กรุณากรอกข้อมูลในตารางอย่างน้อย 1 ชั้น")
+            st.warning("⚠️ กรุณากรอกข้อมูลระดับความสูงและน้ำหนักในตารางอย่างน้อย 1 ชั้น เพื่อเริ่มทำการคำนวณ")
         else:
             floor_names = clean_df["ชื่อชั้น (Floor)"].astype(str).values
             hx = clean_df["ความสูงสะสม hx (ม.)"].astype(float).values
             wx = clean_df["น้ำหนักรวม wx (ตัน)"].astype(float).values
 
-            # เรียกใช้ฟังก์ชันประมวลผลแรงประจำชั้นจาก Engine Module
+            # ประมวลผลกระจายแรงผ่านฟังก์ชันแกนหลักใน calculations.py
             total_W, total_V, k_exp, sum_w_hx_k, cvx, Fx, Vx, Mx = calc.calculate_story_forces(hx, wx, Cs_gov, Ta)
 
-            # แสดงสรุปภาพรวมของแรงเฉือนที่คำนวณได้จริงจากตารางประจำชั้น
-            st.info(f"📊 **สรุปผลลัพธ์โครงสร้างอาคาร:** น้ำหนักรวมโครงสร้าง ($W_{{total}}$) = **{total_W:,.2f} ตัน** | แรงเฉือนที่ฐานอาคารทั้งหมด ($V$) = **{total_V:,.2f} ตัน** (ใช้เลขชี้กำลังแจกแจงแนวตั้ง $k$ = {k_exp:.3f})")
+            # กล่องสรุปผลวิเคราะห์ภาพรวมโครงสร้าง (Executive Summary Card)
+            st.info(f"""
+            📊 **สรุปผลลัพธ์วิเคราะห์แรงสถิตเทียบเท่า:**
+            * น้ำหนักรวมของโครงสร้างที่พิจารณา ($W$) = **{total_W:,.2f} ตัน**
+            * แรงเฉือนที่ฐานอาคารทั้งหมด ($V = C_s \\times W$) = **{total_V:,.2f} ตัน**
+            * ตัวคูณเลขชี้กำลังการกระจายแรงตามแนวดิ่ง ($k$) = **{k_exp:.3f}** *(แปรผันตามคาบเวลาโครงสร้าง $T_a$)*
+            """)
 
+            # สร้าง DataFrame สรุปรายงานสำหรับนำไปออกเล่มคำนวณ
             res_force = pd.DataFrame({
-                "ชื่อชั้น (Floor)": floor_names, "ความสูงสะสม hx (ม.)": hx, "น้ำหนักรวม wx (ตัน)": wx,
-                "ตัวคูณ Cvx": cvx, "แรงผลัก Fx (ตัน)": Fx, "แรงเฉือนสะสม Vx (ตัน)": Vx, "โมเมนต์พลิกคว่ำ Mx (ตัน-ม.)": Mx,
+                "ชื่อชั้น (Floor)": floor_names, 
+                "ความสูงสะสม hx (ม.)": hx, 
+                "น้ำหนักรวม wx (ตัน)": wx,
+                "ตัวคูณกระจายแรง Cvx": cvx, 
+                "แรงผลักด้านข้าง Fx (ตัน)": Fx, 
+                "แรงเฉือนสะสมประจำชั้น Vx (ตัน)": Vx, 
+                "โมเมนต์พลิกคว่ำ Mx (ตัน-ม.)": Mx,
             })
 
-            st.markdown("### 📊 ตารางสรุปแรงออกแบบโครงสร้าง")
-            st.dataframe(res_force.style.format({
-                "ความสูงสะสม hx (ม.)": "{:.2f}", "น้ำหนักรวม wx (ตัน)": "{:,.2f}", "ตัวคูณ Cvx": "{:.4f}",
-                "แรงผลัก Fx (ตัน)": "{:,.2f}", "แรงเฉือนสะสม Vx (ตัน)": "{:,.2f}", "โมเมนต์พลิกคว่ำ Mx (ตัน-ม.)": "{:,.2f}",
-            }), use_container_width=True, hide_index=True)
+            st.markdown("### 📊 ตารางสรุปแรงออกแบบแผ่นดินไหวประจำชั้น (Story Forces Summary Report)")
+            st.dataframe(
+                res_force.style.format({
+                    "ความสูงสะสม hx (ม.)": "{:.2f}", 
+                    "น้ำหนักรวม wx (ตัน)": "{:,.2f}", 
+                    "ตัวคูณกระจายแรง Cvx": "{:.4f}",
+                    "แรงผลักด้านข้าง Fx (ตัน)": "{:,.2f}", 
+                    "แรงเฉือนสะสมประจำชั้น Vx (ตัน)": "{:,.2f}", 
+                    "โมเมนต์พลิกคว่ำ Mx (ตัน-ม.)": "{:,.2f}",
+                }), use_container_width=True, hide_index=True
+            )
 
-            # แสดงผลกราฟจำลองแรงทางสถาปัตยกรรม
+            # แสดงผลแผนภาพกราฟแรงเฉือนและโมเมนต์พลิกคว่ำ (Interactive Engineering Plots)
+            st.markdown("### 📈 แผนภาพแสดงพฤติกรรมแรงและโมเมนต์ตามความสูงอาคาร")
             fig_forces = plots.create_force_plot(floor_names, Fx, Vx, Mx)
             st.plotly_chart(fig_forces, use_container_width=True)
 
+
+    # --- แท็บย่อยที่ 2: การตรวจสอบระยะการโยกตัว ---
     with sub_tab2:
-        st.markdown("##### 📏 ตรวจสอบระยะเคลื่อนตัวขยับพังทลาย (Story Drift Safety Check)")
+        st.markdown("##### 📏 ตรวจสอบเกณฑ์ระยะเคลื่อนตัวและการโยกตัวระหว่างชั้น (Story Drift Safety Check)")
+        
+        # คำนวณเกณฑ์ควบคุมตามตัวคูณความสำคัญตามมาตรฐาน มยผ.
         drift_limit_factor = 0.010 if importance_factor >= 1.5 else (0.015 if importance_factor >= 1.25 else 0.020)
         cat_text = "อาคารความสำคัญสูงมาก (Limit = 1.0%)" if importance_factor >= 1.5 else ("อาคารความสำคัญสูง (Limit = 1.5%)" if importance_factor >= 1.25 else "อาคารทั่วไป (Limit = 2.0%)")
 
         with st.container(border=True):
-            st.markdown(f"🎯 **เกณฑ์ที่ใช้ประเมินระบบในโครงการนี้:** {cat_text} ของความสูงชั้นสุทธิ")
+            st.markdown(f"🎯 **ขีดจำกัดระยะโยกตัว (Drift Limit) ที่ควบคุมโครงการนี้:** **{drift_limit_factor * 100:.1f}%** ของความสูงชั้นสุทธิ ({cat_text})")
             col_pic1, col_pic2 = st.columns([1, 1.2])
             with col_pic1:
-                st.markdown("⚙️ **สมการและสัญลักษณ์ที่ควบคุมเสถียรภาพ:**")
+                st.markdown("⚙️ **หลักการคำนวณพิจารณาเสถียรภาพ:**")
                 st.latex(r"\delta_x = \frac{C_d \times \delta_e}{I_e}")
-                st.latex(r"\text{Drift Ratio} = \frac{\delta_{top} - \delta_{bot}} {h_{net}} \le \text{Limit}")
+                st.latex(r"\Delta_{\text{story}} = \delta_{x,\text{top}} - \delta_{x,\text{bot}}")
+                st.latex(r"\text{Drift Ratio} = \frac{\Delta_{\text{story}}}{h_{\text{net}}} \le \text{Limit}")
+                st.caption("💡 ค่า δe คือระยะเคลื่อนตัวที่ได้จากการใส่แรง Fx เข้าไปในแบบจำลองโครงสร้างยืดหยุ่น (Elastic Analysis)")
             with col_pic2:
-                st.plotly_chart(plots.create_drift_model_plot(), use_container_width=True, config={'displayModeBar': False})
+                fig_drift_model = plots.create_drift_model_plot()
+                st.plotly_chart(fig_drift_model, use_container_width=True, config={'displayModeBar': False})
 
         if clean_df.empty:
-            st.info("💡 รอข้อมูลมิติอาคารจากแท็บย่อยที่ 1")
+            st.info("💡 ระบบกำลังรอข้อมูลมิติอาคารรายชั้นจากแท็บย่อยที่ 1 เพื่อสร้างตารางตรวจสอบ Drift อัตโนมัติ")
         else:
-            # ใช้จำนวนแถวที่ผันแปรตามแท็บแรก เพื่อไม่ให้เกิดปัญหามิติอาเรย์ไม่เท่ากัน
+            # สร้างอินพุตตารางตรวจสอบการโยกตัวที่สอดรับกับรายชื่อชั้นในแท็บแรกโดยอัตโนมัติ
             drift_df = pd.DataFrame({
                 "ชื่อชั้น (Floor)": floor_names, 
                 "ความสูงสะสม hx (ม.)": hx, 
-                "ระยะโยกยืดหยุ่นจากโปรแกรม δe (ซม.)": np.linspace(2.0, 0.4, len(hx))
+                "ระยะเคลื่อนตัวยืดหยุ่นจากโปรแกรม δe (ซม.)": np.linspace(2.0, 0.4, len(hx))
             })
             
+            st.markdown("**กรุณาป้อนระยะเคลื่อนตัวยืดหยุ่น ($\delta_e$) จากโปรแกรมวิเคราะห์โครงสร้าง (เช่น ETABS, SAP2000):**")
             edited_drift = st.data_editor(
                 drift_df, num_rows="fixed", use_container_width=True,
                 column_config={
                     "ชื่อชั้น (Floor)": st.column_config.TextColumn(disabled=True),
                     "ความสูงสะสม hx (ม.)": st.column_config.NumberColumn(disabled=True, format="%.2f"),
-                    "ระยะโยกยืดหยุ่นจากโปรแกรม δe (ซม.)": st.column_config.NumberColumn(min_value=0.0, format="%.3f")
+                    "ระยะเคลื่อนตัวยืดหยุ่นจากโปรแกรม δe (ซม.)": st.column_config.NumberColumn("ระยะเคลื่อนตัวยืดหยุ่นจากโปรแกรม δe (ซม.)", min_value=0.0, format="%.3f", help="ใส่ค่า Displacement สะสมประจำชั้นในหน่วยเซนติเมตร")
                 }, key=f"drift_editor_{len(hx)}"
             )
 
-            delta_e = edited_drift["ระยะโยกยืดหยุ่นจากโปรแกรม δe (ซม.)"].values.astype(float)
+            # คำนวณระยะเคลื่อนตัวจริงรวมพฤติกรรมเหนียวเหนือแรงพิกัด (Inelastic Displacement, δx)
+            delta_e = edited_drift["ระยะเคลื่อนตัวยืดหยุ่นจากโปรแกรม δe (ซม.)"].values.astype(float)
             delta_x = (Cd * delta_e) / importance_factor
 
             n = len(hx)
             story_h, drift_ratio, status = np.zeros(n), np.zeros(n), []
 
             for i in range(n):
+                # คำนวณหาความสูงชั้นสุทธิ และระยะเยื้องศูนย์สัมพัทธ์ระหว่างชั้น (Interstory Drift)
                 if i < n - 1:
                     h_net = hx[i] - hx[i + 1]
                     delta_diff = delta_x[i] - delta_x[i + 1]
@@ -395,30 +457,37 @@ with tab4:
                     h_net = hx[i]
                     delta_diff = delta_x[i]
 
-                h_net = max(h_net, 0.001)
+                h_net = max(h_net, 0.001)  # ป้องกันข้อผิดพลาดในการหารด้วยศูนย์
                 story_h[i] = h_net
-                drift_ratio[i] = delta_diff / (h_net * 100.0) # แปลงค่า h_net เมตร เป็น เซนติเมตร
+                drift_ratio[i] = delta_diff / (h_net * 100.0) # แปลง h_net (เมตร) -> ซม. เพื่อหาสัดส่วนไร้มิติ
                 status.append("✅ PASS" if drift_ratio[i] <= drift_limit_factor else "❌ FAIL")
 
+            # ประกอบข้อมูลตารางสรุปเกณฑ์ความปลอดภัย
             res_drift = edited_drift.copy()
-            res_drift["ความสูงชั้นสุทธิ (ม.)"] = story_h
-            res_drift["ระยะโยกจริงในสนาม δx (ซม.)"] = delta_x
-            res_drift["Drift Ratio (Δ/h) %"] = drift_ratio * 100  # แสดงผลเป็นเปอร์เซ็นต์ให้สอดคล้องกับมาตรฐาน
-            res_drift["Limit (Max) %"] = drift_limit_factor * 100
+            res_drift["ความสูงชั้นสุทธิ h_net (ม.)"] = story_h
+            res_drift["ระยะเคลื่อนตัวจริงในสนาม δx (ซม.)"] = delta_x
+            res_drift["อัตราส่วนการโยกตัว Drift Ratio (%)"] = drift_ratio * 100  # แปลงเป็น % ให้อ่านและเทียบง่าย
+            res_drift["ค่าจำกัดสูงสุด Limit (%)"] = drift_limit_factor * 100
             res_drift["ผลการประเมิน"] = status
 
-            st.markdown("### 🏆 ตารางประเมินผลความปลอดภัยโครงสร้างอาคาร")
+            st.markdown("### 🏆 ตารางประเมินเกณฑ์ความปลอดภัยการโยกตัวระหว่างชั้น (Story Drift Evaluation Table)")
             st.dataframe(
                 res_drift.style.map(
                     lambda v: 'background-color: #dcfce7; color: #166534; font-weight: bold;' if 'PASS' in str(v) else ('background-color: #fee2e2; color: #991b1b; font-weight: bold;' if 'FAIL' in str(v) else ''),
                     subset=['ผลการประเมิน']
                 ).format({
                     "ความสูงสะสม hx (ม.)": "{:.2f}", 
-                    "ระยะโยกยืดหยุ่นจากโปรแกรม δe (ซม.)": "{:.3f}", 
-                    "ความสูงชั้นสุทธิ (ม.)": "{:.2f}", 
-                    "ระยะโยกจริงในสนาม δx (ซม.)": "{:.2f}", 
-                    "Drift Ratio (Δ/h) %": "{:.4f}%", 
-                    "Limit (Max) %": "{:.2f}%"
+                    "ระยะเคลื่อนตัวยืดหยุ่นจากโปรแกรม δe (ซม.)": "{:.3f}", 
+                    "ความสูงชั้นสุทธิ h_net (ม.)": "{:.2f}", 
+                    "ระยะเคลื่อนตัวจริงในสนาม δx (ซม.)": "{:.2f}", 
+                    "อัตราส่วนการโยกตัว Drift Ratio (%)": "{:.3f}%", 
+                    "ค่าจำกัดสูงสุด Limit (%)": "{:.2f}%"
                 }),
                 use_container_width=True, hide_index=True
             )
+            
+            # สรุปภาพรวมความปลอดภัยให้ชัดเจน
+            if "❌ FAIL" in status:
+                st.error("🛑 **ผลการตรวจสอบ:** โครงสร้างอาคารของคุณ **ไม่ผ่านเกณฑ์การโยกตัวระหว่างชั้น** ในบางชั้น! กรุณาเพิ่มขนาดของเสา (Column) หรือใส่กำแพงรับแรงเฉือน (Shear Wall) เพื่อเพิ่มความแข็งเกร็ง (Stiffness) ให้กับอาคาร")
+            else:
+                st.success("✅ **ผลการตรวจสอบ:** โครงสร้างอาคารมีความแข็งเกร็งเพียงพอ **ผ่านเกณฑ์มาตรฐานเรื่องระยะโยกตัว (Drift Limit)** ทุกชั้น สามารถใช้เป็นเอกสารแนบประกอบรายการคำนวณได้ทันที")
