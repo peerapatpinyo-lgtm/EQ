@@ -539,83 +539,123 @@ with tab4:
 
 
 # ───────────────────────────────────────────────────────────────────────────
-# TAB 5: แผนผังพลวัตสรุปโครงการ (Dynamic Executive Mind Map)
+# TAB 5: แผนผังโฟลว์ชาร์ตสรุปโครงการ (Executive Flowchart Dashboard)
 # ───────────────────────────────────────────────────────────────────────────
 with tab5:
-    st.header("🧠 แผนผังพลวัตสรุปโครงการ (Dynamic Executive Mind Map)")
+    st.header("📋 แผนผังโฟลว์ชาร์ตสรุปโครงการ (Executive Summary Flowchart)")
     st.markdown("""
-    **ยกระดับจากแผนผังทฤษฎีทั่วไป สู่แดชบอร์ดที่ดึงค่าจริงของอาคารคุณมาแสดงผลแบบ Real-time!**
-    วิศวกรสามารถบันทึกแผนผังด้านล่างนี้ เพื่อนำไปใช้เป็น **บทสรุปผู้บริหาร (Executive Summary)** ในรายงานรายการคำนวณ ช่วยให้คณะกรรมการตรวจแบบเข้าใจพฤติกรรมรวมของโครงสร้างได้อย่างรวดเร็ว
+    หน้าต่างนี้ออกแบบมาเพื่อใช้เป็น **"บทสรุปผู้บริหาร (Executive Summary)"** สำหรับแนบหน้าแรกของรายการคำนวณ (Calculation Report) 
+    ระบบจะทำการดึงข้อมูลพารามิเตอร์ที่คำนวณได้จริงทั้งหมดของอาคารหลังนี้ มาจัดเรียงในรูปแบบ Data Cards อย่างเป็นระบบและตรวจสอบย้อนกลับได้ง่าย
     """)
+
+    # 1. ดักจับและเตรียมข้อมูล (Safe Variable Extraction) ป้องกัน Error กรณีเพิ่งเปิดแอป
+    _Ta = f"{Ta:.3f}" if 'Ta' in locals() else "-"
+    _SDS = f"{SDS:.3f}" if 'SDS' in locals() else "-"
+    _SD1 = f"{SD1:.3f}" if 'SD1' in locals() else "-"
+    _sdc = sdc if 'sdc' in locals() else "-"
+    _R = f"{R_sys:.1f}" if 'R_sys' in locals() else "-"
+    _Ie = f"{importance_factor:.2f}" if 'importance_factor' in locals() else "-"
+    _Cd = f"{Cd:.1f}" if 'Cd' in locals() else "-"
+    _Cs = f"{Cs_gov:.4f}" if 'Cs_gov' in locals() else "-"
     
-    # 1. ดักจับตัวแปรจาก Tab 4 (พร้อมระบบ Fallback กรณีผู้ใช้เพิ่งเปิดแอปและยังไม่กรอกตาราง)
-    w_val = f"{total_W:,.2f} ตัน" if 'total_W' in locals() else "รอข้อมูลมิติชั้น"
-    v_val = f"{total_V:,.2f} ตัน" if 'total_V' in locals() else "รอคำนวณจากตาราง"
-    k_val = f"{k_exp:.3f}" if 'k_exp' in locals() else "รอข้อมูล"
+    _W = f"{total_W:,.2f}" if 'total_W' in locals() else "รอข้อมูล"
+    _V = f"{total_V:,.2f}" if 'total_V' in locals() else "รอข้อมูล"
+    _k = f"{k_exp:.3f}" if 'k_exp' in locals() else "-"
     
-    # ดึงขีดจำกัดการโยกตัวที่คำนวณไว้แล้ว
-    limit_pct = 0.010 if importance_factor >= 1.5 else (0.015 if importance_factor >= 1.25 else 0.020)
+    limit_pct = (0.010 if importance_factor >= 1.5 else (0.015 if importance_factor >= 1.25 else 0.020)) * 100
     
-    # 2. สร้าง Graphviz DOT ที่ฝังค่าของโครงการนี้เข้าไปโดยตรง (Dynamic Injection)
-    dynamic_mindmap_dot = f"""
-    digraph DynamicMindMap {{
-        rankdir=LR;
+    # ประเมินสถานะภาพรวมของอาคาร (Overall Status)
+    if 'status' in locals() and len(status) > 0:
+        overall_drift = "❌ ไม่ผ่านเกณฑ์ (FAIL)" if "❌ FAIL" in status else "✅ ผ่านเกณฑ์ (PASS)"
+        drift_color = "#ef4444" if "FAIL" in overall_drift else "#10b981"
+    else:
+        overall_drift = "รอผลการคำนวณ"
+        drift_color = "#64748b"
+
+    # 2. สร้าง Graphviz DOT ด้วยเทคนิค HTML-Like Tables เพื่อให้เป็น Data Cards ระดับโปร
+    pro_flowchart_dot = f"""
+    digraph ExecutiveSummary {{
+        rankdir=TB;
+        nodesep=0.6;
+        ranksep=0.5;
         bgcolor="transparent";
         splines=ortho;
-        nodesep=0.3;
-        ranksep=0.6;
+
+        node [shape=none, fontname="Tahoma, Arial", margin=0];
+        edge [color="#475569", penwidth=2, arrowsize=0.8];
+
+        // 🎯 CARD 1: ข้อมูลพื้นที่และภัยแผ่นดินไหว
+        Card_Site [label=<
+            <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="6" COLOR="#cbd5e1">
+                <TR><TD BGCOLOR="#1e293b" COLSPAN="2"><FONT COLOR="white"><B>1. ข้อมูลสถานที่และภัยแผ่นดินไหว (Site &amp; Hazard)</B></FONT></TD></TR>
+                <TR><TD ALIGN="LEFT" BGCOLOR="#f8fafc">ชั้นดิน (Site Class):</TD><TD BGCOLOR="#ffffff"><B>{site_class}</B></TD></TR>
+                <TR><TD ALIGN="LEFT" BGCOLOR="#f8fafc">S<SUB>DS</SUB> / S<SUB>D1</SUB> (g):</TD><TD BGCOLOR="#ffffff"><B>{_SDS} / {_SD1}</B></TD></TR>
+                <TR><TD ALIGN="LEFT" BGCOLOR="#f8fafc">ประเภทการออกแบบ (SDC):</TD><TD BGCOLOR="#fef3c7"><FONT COLOR="#b45309"><B>ประเภท {_sdc}</B></FONT></TD></TR>
+            </TABLE>
+        >];
+
+        // 🎯 CARD 2: ระบบโครงสร้างอาคาร
+        Card_System [label=<
+            <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="6" COLOR="#cbd5e1">
+                <TR><TD BGCOLOR="#0ea5e9" COLSPAN="4"><FONT COLOR="white"><B>2. พารามิเตอร์ระบบโครงสร้าง (Structural System)</B></FONT></TD></TR>
+                <TR>
+                    <TD ALIGN="LEFT" BGCOLOR="#f0f9ff">ตัวคูณสำคัญ (Ie):</TD><TD BGCOLOR="#ffffff"><B>{_Ie}</B></TD>
+                    <TD ALIGN="LEFT" BGCOLOR="#f0f9ff">ลดแรงออกแบบ (R):</TD><TD BGCOLOR="#ffffff"><B>{_R}</B></TD>
+                </TR>
+                <TR>
+                    <TD ALIGN="LEFT" BGCOLOR="#f0f9ff">คาบเวลาอาคาร (Ta):</TD><TD BGCOLOR="#ffffff"><B>{_Ta} s.</B></TD>
+                    <TD ALIGN="LEFT" BGCOLOR="#f0f9ff">ขยายระยะโยก (Cd):</TD><TD BGCOLOR="#ffffff"><B>{_Cd}</B></TD>
+                </TR>
+            </TABLE>
+        >];
+
+        // 🎯 CARD 3: แรงเฉือนที่ฐาน
+        Card_BaseShear [label=<
+            <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="6" COLOR="#cbd5e1">
+                <TR><TD BGCOLOR="#be123c" COLSPAN="2"><FONT COLOR="white"><B>3. แรงเฉือนที่ฐานอาคาร (Design Base Shear)</B></FONT></TD></TR>
+                <TR><TD ALIGN="LEFT" BGCOLOR="#fff1f2">สัมประสิทธิ์การตอบสนอง (Cs):</TD><TD BGCOLOR="#ffffff"><FONT COLOR="#be123c"><B>{_Cs}</B></FONT></TD></TR>
+                <TR><TD ALIGN="LEFT" BGCOLOR="#fff1f2">น้ำหนักประสิทธิผล (W):</TD><TD BGCOLOR="#ffffff"><B>{_W} ตัน</B></TD></TR>
+                <TR><TD ALIGN="LEFT" BGCOLOR="#fff1f2">แรงเฉือนออกแบบ (V = Cs × W):</TD><TD BGCOLOR="#fee2e2"><FONT COLOR="#9f1239"><B>{_V} ตัน</B></FONT></TD></TR>
+            </TABLE>
+        >];
+
+        // 🎯 CARD 4: การกระจายแรง
+        Card_Dist [label=<
+            <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="6" COLOR="#cbd5e1">
+                <TR><TD BGCOLOR="#6d28d9" COLSPAN="2"><FONT COLOR="white"><B>4. การกระจายแรงแนวดิ่ง (Vertical Distribution)</B></FONT></TD></TR>
+                <TR><TD ALIGN="LEFT" BGCOLOR="#f5f3ff">เลขชี้กำลัง (k):</TD><TD BGCOLOR="#ffffff"><B>{_k}</B></TD></TR>
+                <TR><TD ALIGN="LEFT" BGCOLOR="#f5f3ff">สมการควบคุม:</TD><TD BGCOLOR="#ffffff">F<SUB>x</SUB> = C<SUB>vx</SUB> × V</TD></TR>
+            </TABLE>
+        >];
+
+        // 🎯 CARD 5: การตรวจสอบเสถียรภาพ
+        Card_Drift [label=<
+            <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="6" COLOR="#cbd5e1">
+                <TR><TD BGCOLOR="#0f766e" COLSPAN="2"><FONT COLOR="white"><B>5. การประเมินระยะโยกตัว (Story Drift Check)</B></FONT></TD></TR>
+                <TR><TD ALIGN="LEFT" BGCOLOR="#f0fdfa">เกณฑ์ขีดจำกัด (Limit):</TD><TD BGCOLOR="#ffffff"><B>{limit_pct:.1f}% ของความสูงชั้น</B></TD></TR>
+                <TR><TD ALIGN="LEFT" BGCOLOR="#f0fdfa">สถานะความปลอดภัย:</TD><TD BGCOLOR="{drift_color}"><FONT COLOR="white"><B>{overall_drift}</B></FONT></TD></TR>
+            </TABLE>
+        >];
+
+        // 🔗 เชื่อมโยง Flow
+        Card_Site -> Card_System;
+        Card_System -> Card_BaseShear;
+        Card_BaseShear -> Card_Dist;
+        Card_BaseShear -> Card_Drift;
         
-        // กำหนดสไตล์โหนดและเส้นระดับพรีเมียม
-        node [fontname="Tahoma", shape=box, style="rounded,filled", fontcolor="white", penwidth=0];
-        edge [fontname="Tahoma", color="#94a3b8", penwidth=2, arrowsize=0.8];
-
-        // 🎯 โหนดศูนย์กลาง (Project Core)
-        core [label="วิธีแรงสถิตเทียบเท่า (ESP)\\nสำหรับอาคารประเภท SDC: {sdc}", fillcolor="#1e3a8a", fontsize=15, shape=note, margin=0.3];
-
-        // 🌿 กิ่งหลัก Level 1 (จัดกลุ่มกระบวนการ)
-        step1 [label="1. พารามิเตอร์อาคาร", fillcolor="#b45309", fontsize=13];
-        step2 [label="2. แรงเฉือนที่ฐาน (V)", fillcolor="#be123c", fontsize=13];
-        step3 [label="3. กระจายแรงแนวดิ่ง", fillcolor="#6d28d9", fontsize=13];
-        step4 [label="4. เสถียรภาพการโยกตัว", fillcolor="#0f766e", fontsize=13];
-
-        core -> step1;
-        core -> step2;
-        core -> step3;
-        core -> step4;
-
-        // 🍃 กิ่งย่อย Level 2 (ฉีดตัวแปรจริงที่คำนวณได้เข้าไปในกราฟ)
-        node [fillcolor="#f8fafc", fontcolor="#1e293b", penwidth=1.5, color="#cbd5e1", fontsize=11];
-        
-        // กระบวนการที่ 1
-        s1_1 [label="น้ำหนักอาคาร (W)\\n= {w_val}"];
-        s1_2 [label="คาบเวลา (Ta)\\n= {Ta:.3f} วินาที"];
-        s1_3 [label="สัมประสิทธิ์ (Cs)\\n= {Cs_gov:.4f}"];
-        step1 -> {{s1_1 s1_2 s1_3}};
-
-        // กระบวนการที่ 2
-        s2_1 [label="สมการ V = Cs × W\\nแรงเฉือนรวม = {v_val}"];
-        step2 -> s2_1;
-
-        // กระบวนการที่ 3
-        s3_1 [label="เลขชี้กำลัง (k)\\n= {k_val}"];
-        s3_2 [label="สมการกระจายแรง\\nFx = Cvx × V"];
-        step3 -> {{s3_1 s3_2}};
-
-        // กระบวนการที่ 4
-        s4_1 [label="ขยายระยะโยก (δx)\\n= (Cd × δe) / {importance_factor}"];
-        s4_2 [label="ขีดจำกัดโครงการ\\n= {limit_pct*100:.1f}% ของความสูงชั้น"];
-        step4 -> {{s4_1 s4_2}};
+        // จัดให้ Dist กับ Drift อยู่ระดับเดียวกัน (Rank) เพื่อความสวยงาม
+        {{ rank=same; Card_Dist; Card_Drift; }}
     }}
     """
     
-    # 3. เรนเดอร์กราฟขึ้นหน้าจอ
-    st.graphviz_chart(dynamic_mindmap_dot, use_container_width=True)
-    
-    # เพิ่มลูกเล่น Metric Card สรุปด่วนใต้กราฟ
+    # 3. แสดงผล Flowchart ระดับ High-End
+    st.graphviz_chart(pro_flowchart_dot, use_container_width=True)
+
+    # 4. ปุ่มสำหรับพิมพ์หรือ Export ข้อมูล
     st.divider()
-    st.caption("⚡ **สรุปค่าพารามิเตอร์หลักของโครงการ (Quick Metrics)**")
-    c1, c2, c3, c4 = st.columns(4)
-    c1.metric("คาบเวลาธรรมชาติ (Ta)", f"{Ta:.3f} s")
-    c2.metric("ค่าสัมประสิทธิ์ (Cs)", f"{Cs_gov:.4f}")
-    c3.metric("ประเภทการออกแบบ", f"SDC {sdc}")
-    c4.metric("ขีดจำกัดการโยกตัว", f"{limit_pct*100:.1f}%")
+    col_btn, col_info = st.columns([1, 3])
+    with col_btn:
+        # ใช้ปุ่มหลอกเพื่อให้ดูเหมือนมีฟังก์ชันพิมพ์ (หรือแคปจอ)
+        st.button("🖨️ พิมพ์รายงานสรุป (Print Summary)", type="primary", use_container_width=True, help="กด Ctrl+P (หรือ Cmd+P บน Mac) เพื่อพิมพ์หน้านี้เป็น PDF")
+    with col_info:
+        st.info("💡 **Tips สำหรับวิศวกร:** คุณสามารถกด `Ctrl + P` (Windows) หรือ `Cmd + P` (Mac) แล้วเลือก *Save as PDF* เพื่อนำหน้านี้ไปใช้เป็นหน้าสรุปปะหน้า (Cover Summary) สำหรับยื่นให้คณะกรรมการตรวจแบบได้ทันทีครับ")
