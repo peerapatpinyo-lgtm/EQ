@@ -5,7 +5,7 @@ calculations.py — เครื่องยนต์คำนวณหลัก
 
 import numpy as np
 from scipy.interpolate import interp1d
-from data_loader import FA_TABLE, FV_TABLE
+from data_loader import FA_TABLE, FV_TABLE, SOFT_CLAY_SPECTRUM, get_soft_clay_sa
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -285,3 +285,44 @@ def get_redundancy_factor(sdc: str, num_bays: int, num_frames: int) -> tuple[flo
     if num_bays >= 2 and num_frames >= 2:
         return 1.0, "ผ่านเกณฑ์ redundancy (≥2 ช่วงและ ≥2 แนวโครง) → ρ = 1.0"
     return 1.3, "ไม่ผ่านเกณฑ์ redundancy → ρ = 1.3 (conservative)"
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# 9. Cs สำหรับพื้นที่ดินเหนียวอ่อน มยผ. 1302 (Bangkok Soft Clay)
+# ──────────────────────────────────────────────────────────────────────────────
+
+def compute_cs_soft_clay(T_design: float, R: float, Ie: float, S1_bkk: float = 0.10) -> dict:
+    """
+    คำนวณ Cs สำหรับพื้นที่ดินเหนียวอ่อน (มยผ. 1302-61)
+    ใช้สเปกตรัม Sa ที่ T_design แทน SDS/(R/Ie) แบบปกติ
+
+    สูตร:
+        Cs,basic  = Sa(T_design) / (R/Ie)
+        Cs,max    = Sa(T_design) / (R/Ie)   ← เหมือน basic (สเปกตรัมรวม amplification แล้ว)
+        Cs,min    = max(0.01, 0.044 × SDS_bkk × Ie)
+        Cs,gov    = max(Cs,min, Cs,basic)
+
+    หมายเหตุ: ไม่ใช้สูตร SD1/[T·(R/Ie)] แยก เพราะ มยผ. 1302
+    กำหนดรูปทรงสเปกตรัมสมบูรณ์โดยตรง
+    """
+    p      = SOFT_CLAY_SPECTRUM
+    SDS    = p["SDS"]
+    RIe    = R / Ie if Ie > 0 else R
+
+    Sa_T   = get_soft_clay_sa(T_design)
+    cs_basic = Sa_T / RIe if RIe > 0 else 0.0
+    cs_min   = max(0.01, 0.044 * SDS * Ie)
+    cs_gov   = max(cs_min, cs_basic)
+
+    return {
+        "cs_basic":   cs_basic,
+        "cs_max":     cs_basic,   # ไม่มีการตัดยอดแยก
+        "cs_min":     cs_min,
+        "cs_min_s1":  0.0,
+        "cs_gov":     cs_gov,
+        "RIe":        RIe,
+        "Sa_T":       Sa_T,
+        "SDS_bkk":    SDS,
+        "controls":   ("ต่ำสุด (Cs,min)" if cs_gov == cs_min else "ปกติ (Sa(T)/[R/Ie])"),
+        "mode":       "soft_clay",
+    }
