@@ -434,177 +434,153 @@ with tab3:
     # แสดงกราฟใน Streamlit
     st.plotly_chart(fig, use_container_width=True)
 
-
 # ----------------- TAB 4 -----------------
 with tab4:
     st.header("🏢 วิธีแรงสถิตเทียบเท่า (Equivalent Static Procedure)")
-    st.markdown("ตามมาตรฐาน **มยผ. 1301/1302** วิธีนี้จะแปลงแรงแผ่นดินไหวให้เป็นแรงผลักด้านข้างเสมือนกระทำที่จุดศูนย์กลางมวลของแต่ละชั้น")
+    st.markdown("ตามมาตรฐาน **มยผ. 1301/1302** ระบบจะคำนวณแรงผลักและพิกัดการโยกตัวควบคุม")
 
-    # สมมติค่า R (ตัวคูณการลดแรงเนื่องจากความเหนียว) หากยังไม่มีในระบบ ให้ผู้ใช้เลือก
-    st.subheader("⚡ สเต็ปที่ 1: กำหนดค่าพารามิเตอร์และคำนวณค่า $C_s$")
+    st.subheader("⚡ สเต็ปที่ 1: เลือกประเภทโครงสร้างและสัมประสิทธิ์ทางวิศวกรรม")
     
-    col_param1, col_param2 = st.columns(2)
-    with col_param1:
-        # ให้วิศวกรเลือกประเภทโครงสร้างเพื่อหาค่า R
-        r_options = {
-            "โครงนำแรงดัด คสล. ความเหนียวสูง (Special Moment Frame) [R = 8.0]": 8.0,
-            "โครงนำแรงดัด คสล. ความเหนียวปานกลาง (Intermediate Moment Frame) [R = 5.0]": 5.0,
-            "โครงนำแรงดัด คสล. ความเหนียวธรรมดา (Ordinary Moment Frame) [R = 3.0]": 3.0,
-            "กำแพงรับแรงเฉือน คสล. (Shear Wall) [R = 5.0]": 5.0
-        }
-        selected_r = st.selectbox("🔷 เลือกประเภทระบบโครงสร้างต้านทานแรงด้านข้าง (ค่า R):", list(r_options.keys()))
-        R = r_options[selected_r]
+    # อัปเกรดข้อมูลระบบโครงสร้างให้ครอบคลุม R, Omega0, Cd ตามมาตรฐาน
+    structural_systems = {
+        "โครงนำแรงดัด คสล. ความเหนียวสูง (Special Moment Frame)": {"R": 8.0, "Omega": 3.0, "Cd": 5.5, "Limit": "อาคารทุกความสูง"},
+        "โครงนำแรงดัด คสล. ความเหนียวปานกลาง (Intermediate Moment Frame)": {"R": 5.0, "Omega": 3.0, "Cd": 4.5, "Limit": "จำกัดความสูงใน SDC ง"},
+        "โครงนำแรงดัด คสล. ความเหนียวธรรมดา (Ordinary Moment Frame)": {"R": 3.0, "Omega": 3.0, "Cd": 2.5, "Limit": "ห้ามใช้ใน SDC ค และ ง"},
+        "กำแพงรับแรงเฉือน คสล. ความเหนียวสูง (Special Shear Wall)": {"R": 6.0, "Omega": 2.5, "Cd": 5.0, "Limit": "อาคารทุกความสูง"},
+        "กำแพงรับแรงเฉือน คสล. ความเหนียวธรรมดา (Ordinary Shear Wall)": {"R": 5.0, "Omega": 2.5, "Cd": 4.5, "Limit": "จำกัดความสูงใน SDC ง"}
+    }
+    
+    selected_system = st.selectbox("🔷 เลือกประเภทระบบโครงสร้างต้านทานแรงด้านข้าง:", list(structural_systems.keys()))
+    
+    # ดึงค่าสัมประสิทธิ์ออกมาใช้งาน
+    R = structural_systems[selected_system]["R"]
+    Omega0 = structural_systems[selected_system]["Omega"]
+    Cd = structural_systems[selected_system]["Cd"]
+    height_limit_text = structural_systems[selected_system]["Limit"]
+
+    # แสดงผลค่าพารามิเตอร์แบบกลุ่ม 
+    col_coeff1, col_coeff2, col_coeff3 = st.columns(3)
+    with col_coeff1:
+        st.metric(label="ตัวคูณลดแรง ($R$)", value=f"{R}")
+    with col_coeff2:
+        st.metric(label="ตัวคูณเพิ่มกำลัง ($\Omega_0$)", value=f"{Omega0}")
+    with col_coeff3:
+        st.metric(label="ตัวคูณขยายการเคลื่อนตัว ($C_d$)", value=f"{Cd}")
+        
+    st.caption(f"📌 **ข้อจำกัดการใช้งานยื้องต้น:** {height_limit_text}")
 
     # --- คำนวณสัมประสิทธิ์ผลตอบสนองแผ่นดินไหว (Cs) ---
-    # สูตร: Cs = SDS / (R / Ie)
-    Ie = importance_factor # ดึงค่าความสำคัญมาจากโค้ดเดิมของคุณ
-    
+    Ie = importance_factor
     Cs_compute = SDS / (R / Ie)
-    
-    # ขีดจำกัดบน (Upper Limit): Cs_max = SD1 / (T * (R / Ie))
-    if Ta > 0:
-        Cs_max = SD1 / (Ta * (R / Ie))
-    else:
-        Cs_max = Cs_compute
-        
-    # ขีดจำกัดล่าง (Lower Limit): Cs_min = 0.01 (หรือตามเกณฑ์พิเศษอื่นๆ)
+    Cs_max = SD1 / (Ta * (R / Ie)) if Ta > 0 else Cs_compute
     Cs_min = 0.01
-    
-    # สรุปค่า Cs ที่ใช้จริง
     Cs_governing = max(Cs_min, min(Cs_compute, Cs_max))
-
-    with col_param2:
-        # แสดงผลลัพธ์พารามิเตอร์หลักแบบ Metric
-        st.metric(label="สัมประสิทธิ์แรงเฉือนที่ฐานที่ควบคุม ($C_s$)", value=f"{Cs_governing:.4f}")
-        st.caption(f"สูตรคำนวณ: $V = C_s \\times W$ (แรงเฉือนที่ฐาน = $C_s$ คูณน้ำหนักอาคารทั้งหมด)")
-
-    # แสดงรายละเอียดสูตรให้เข้าใจง่าย (เปิด-ปิดดูได้)
-    with st.expander("🔍 ดูรายละเอียดการตรวจสอบขีดจำกัดของค่า $C_s$"):
-        st.latex(r"C_s = \frac{S_{DS}}{R/I_e}")
-        st.markdown(f"- ค่าคำนวณพื้นฐาน: $C_s = {SDS:.3f} / ({R} / {Ie}) = {Cs_compute:.4f}$")
-        st.markdown(f"- ค่าขีดจำกัดบน ($C_{{s,max}}$): {f'{Cs_max:.4f}' if Ta > 0 else 'N/A'} *(ควบคุมเมื่ออาคารสูงหรือคาบยาว)*")
-        st.markdown(f"- ค่าขีดจำกัดล่าง ($C_{{s,min}}$): {Cs_min:.4f} *(ควบคุมเมื่ออาคารเตี้ยหรือแรงแผ่นดินไหวต่ำมาก)*")
-        st.info(f"🎯 **สรุปค่าที่เลือกใช้:** $C_s = {Cs_governing:.4f}$")
 
     st.divider()
 
-    # สเต็ปที่ 2: ตารางกรอกน้ำหนักความสูงแต่ละชั้น
-    st.subheader("📊 สเต็ปที่ 2: กรอกข้อมูลน้ำหนักและความสูงของแต่ละชั้น (Story Data)")
-    st.markdown("โปรดแก้ตัวเลขในตารางด้านล่างนี้ให้ตรงกับแบบอาคารของคุณ (สามารถคลิกดับเบิ้ลคลิกแก้ไข หรือกดเพิ่มแถวได้ที่มุมตาราง)")
+    # สเต็ปที่ 2: ตารางกรอกข้อมูลอาคาร
+    st.subheader("📊 สเต็ปที่ 2: กรอกข้อมูลน้ำหนักและความสูงแต่ละชั้น (Story Data)")
+    st.markdown("พิมพ์แก้ไขข้อมูลตัวเลขได้โดยตรงในตาราง (ระบบจะล็อกให้กรอกเฉพาะตัวเลข)")
 
-    # สร้างข้อมูลเริ่มต้นสำหรับอาคาร 4 ชั้น (Default Data)
     default_stories = pd.DataFrame([
-        {"ชื่อชั้น (Floor)": "ชั้น 4 (ดาดฟ้า)", "ความสูงสะสมจากฐาน, hx (ม.)": 14.0, "น้ำหนักรวมของชั้น, wx (ตัน)": 150.0},
-        {"ชื่อชั้น (Floor)": "ชั้น 3", "ความสูงสะสมจากฐาน, hx (ม.)": 10.5, "น้ำหนักรวมของชั้น, wx (ตัน)": 200.0},
-        {"ชื่อชั้น (Floor)": "ชั้น 2", "ความสูงสะสมจากฐาน, hx (ม.)": 7.0, "น้ำหนักรวมของชั้น, wx (ตัน)": 200.0},
-        {"ชื่อชั้น (Floor)": "ชั้น 1", "ความสูงสะสมจากฐาน, hx (ม.)": 3.5, "น้ำหนักรวมของชั้น, wx (ตัน)": 220.0},
+        {"ชื่อชั้น (Floor)": "ชั้น 4 (ดาดฟ้า)", "ความสูงสะสม, hx (ม.)": 14.0, "น้ำหนักรวม, wx (ตัน)": 150.0},
+        {"ชื่อชั้น (Floor)": "ชั้น 3", "ความสูงสะสม, hx (ม.)": 10.5, "น้ำหนักรวม, wx (ตัน)": 200.0},
+        {"ชื่อชั้น (Floor)": "ชั้น 2", "ความสูงสะสม, hx (ม.)": 7.0, "น้ำหนักรวม, wx (ตัน)": 200.0},
+        {"ชื่อชั้น (Floor)": "ชั้น 1", "ความสูงสะสม, hx (ม.)": 3.5, "น้ำหนักรวม, wx (ตัน)": 220.0},
     ])
 
-    # ใช้ st.data_editor ให้ผู้ใช้ปรับแต่งตารางได้สดๆ
     edited_df = st.data_editor(
         default_stories, 
         num_rows="dynamic", 
         use_container_width=True,
+        column_config={
+            "ชื่อชั้น (Floor)": st.column_config.TextColumn("ชื่อชั้น (Floor)", required=True),
+            "ความสูงสะสม, hx (ม.)": st.column_config.NumberColumn("ความสูงสะสม, hx (ม.)", min_value=0.0, format="%.2f", required=True),
+            "น้ำหนักรวม, wx (ตัน)": st.column_config.NumberColumn("น้ำหนักรวม, wx (ตัน)", min_value=0.0, format="%.2f", required=True),
+        },
         key="story_editor"
     )
 
-    # --- เริ่มกระบวนการคำนวณกระจายแรง (Vertical Distribution) ---
     if edited_df is not None and not edited_df.empty:
         try:
-            # ดึงข้อมูลจากตารางมาคำนวณ
-            hx = edited_df.iloc[:, 1].astype(float).values
-            wx = edited_df.iloc[:, 2].astype(float).values
-            floor_names = edited_df.iloc[:, 0].astype(str).values
+            cleaned_df = edited_df.dropna(subset=[edited_df.columns[1], edited_df.columns[2]])
+            if cleaned_df.empty:
+                st.info("💡 กำลังรอให้คุณกรอกข้อมูลตัวเลขให้ครบถ้วน...")
+                st.stop()
+
+            hx = cleaned_df.iloc[:, 1].astype(float).values
+            wx = cleaned_df.iloc[:, 2].astype(float).values
+            floor_names = cleaned_df.iloc[:, 0].astype(str).values
             
-            # 1. คำนวณน้ำหนักรวมอาคาร (W) และแรงเฉือนที่ฐานรวม (V)
             total_W = np.sum(wx)
             total_V = Cs_governing * total_W
             
-            # 2. หาค่าตัวแปร k (Exponent) ตามคาบเวลา Ta
-            # Ta <= 0.5 s -> k = 1.0 || Ta >= 2.5 s -> k = 2.0 || ระหว่างนั้นให้ Interpolate
-            if Ta <= 0.5:
-                k_exp = 1.0
-            elif Ta >= 2.5:
-                k_exp = 2.0
-            else:
-                k_exp = 1.0 + (Ta - 0.5) * (2.0 - 1.0) / (2.5 - 0.5)
+            # คำนวณหาค่า k
+            k_exp = 1.0 if Ta <= 0.5 else (2.0 if Ta >= 2.5 else 1.0 + (Ta - 0.5) * (2.0 - 1.0) / (2.5 - 0.5))
 
-            # 3. คำนวณพจน์ wx * (hx^k) ของแต่ละชั้น
             w_hx_k = wx * (hx ** k_exp)
             sum_w_hx_k = np.sum(w_hx_k)
 
             if sum_w_hx_k > 0:
-                # 4. คำนวณตัวคูณกระจายแรง Cvx และ แรงผลัก Fx
                 cvx = w_hx_k / sum_w_hx_k
                 Fx = cvx * total_V
+                Vx = np.cumsum(Fx)
                 
-                # 5. คำนวณแรงเฉือนประจำชั้น (Story Shear, Vx) สะสมจากบนลงล่าง
-                # (แรงเฉือนชั้นล่างสุดจะเท่ากับ Base Shear V เสมอ)
-                Vx = np.cumsum(Fx) # เนื่องจากเรียงลำดับชั้นจากบนลงล่างอยู่แล้ว
+                # --- [ส่วนเสริมวิศวกรรมระดับโปร: เช็กเกณฑ์การโยกตัว (Story Drift Limit)] ---
+                # เกณฑ์ มยผ. กำหนดให้ Allowable Story Drift ทั่วไปอยู่ที่ 1.0% - 2.0% ของความสูงชั้น (สมมติเฉลี่ยที่ 1.5% สำหรับอาคารทั่วไป)
+                # และระยะโยกตัวจริงคำนวณจาก: delta_M = (Cd * delta_elastic) / Ie
+                story_heights = np.zeros_like(hx)
+                for i in range(len(hx)):
+                    if i == len(hx) - 1:
+                        story_heights[i] = hx[i] # ชั้นล่างสุด
+                    else:
+                        story_heights[i] = hx[i] - hx[i+1] # ความสูงสุทธิประจำชั้น
                 
-                # ประกอบข้อมูลกลับเข้าตารางสรุปผล
-                result_df = edited_df.copy()
-                result_df["ตัวคูณกระจายแรง (Cvx)"] = cvx
+                allowable_drift = 0.015 * story_heights * 100 # แปลงเป็นหน่วย เซนติเมตร (cm)
+                
+                result_df = cleaned_df.copy()
                 result_df["แรงผลักประจำชั้น, Fx (ตัน)"] = Fx
-                result_df["แรงเฉือนสะสมในชั้น, Vx (ตัน)"] = Vx
+                result_df["แรงเฉือนสะสม, Vx (ตัน)"] = Vx
+                result_df["ความสูงชั้นสุทธิ (ม.)"] = story_heights
+                result_df["ระยะดริฟต์ที่ยอมให้สูงสุด (ซม.)"] = allowable_drift
                 
                 st.divider()
                 
-                # สเต็ปที่ 3: สรุปผลลัพธ์
-                st.subheader("🏆 สเต็ปที่ 3: สรุปผลการกระจายแรงแผ่นดินไหวแนวตั้ง")
+                st.subheader("🏆 สเต็ปที่ 3: สรุปผลรายการคำนวณและเกณฑ์ควบคุม")
                 
-                # โชว์ยอดสรุปแบบกล่องทอง
-                col_sum1, col_sum2, col_sum3 = st.columns(3)
+                col_sum1, col_sum2 = st.columns(2)
                 with col_sum1:
-                    st.inner_value = st.metric("น้ำหนักอาคารรวม ($W$)", f"{total_W:,.2f} ตน")
+                    st.metric("น้ำหนักอาคารรวม ($W$)", f"{total_W:,.2f} ตัน")
+                    st.metric("แรงเฉือนที่ฐานออกแบบรวม ($V$)", f"{total_V:,.2f} ตัน")
                 with col_sum2:
-                    st.metric("แรงเฉือนที่ฐานรวม ($V$)", f"{total_V:,.2f} ตน")
-                with col_sum3:
-                    st.metric("ค่าดัชนีการกระจายแรง ($k$)", f"{k_exp:.3f}")
+                    st.metric("สัมประสิทธิ์แรงเฉือน ($C_s$)", f"{Cs_governing:.4f}")
+                    st.metric("ตัวคูณขยายระยะเคลื่อนตัว ($C_d/I_e$)", f"{Cd/Ie:.2f}")
 
-                # แสดงตารางผลลัพธ์สุดท้าย
-                st.markdown("**📋 ตารางรายการคำนวณแรงแต่ละชั้น (วิศวกรนำค่า Fx ไปป้อนเข้าโปรแกรมโครงสร้างได้ทันที):**")
+                st.markdown("**📋 ตารางสรุปแรงและเกณฑ์ควบคุมระยะเคลื่อนตัวระหว่างชั้น (Story Drift Limits):**")
                 st.dataframe(
                     result_df.style.format({
-                        "ความสูงสะสมจากฐาน, hx (ม.)": "{:.2f}",
-                        "น้ำหนักรวมของชั้น, wx (ตัน)": "{:,.2f}",
-                        "ตัวคูณกระจายแรง (Cvx)": "{:.4f}",
+                        "ความสูงสะสม, hx (ม.)": "{:.2f}",
+                        "น้ำหนักรวม, wx (ตัน)": "{:,.2f}",
                         "แรงผลักประจำชั้น, Fx (ตัน)": "{:,.2f}",
-                        "แรงเฉือนสะสมในชั้น, Vx (ตัน)": "{:,.2f}"
+                        "แรงเฉือนสะสม, Vx (ตัน)": "{:,.2f}",
+                        "ความสูงชั้นสุทธิ (ม.)": "{:.2f}",
+                        "ระยะดริฟต์ที่ยอมให้สูงสุด (ซม.)": "{:.2f}"
                     }),
                     use_container_width=True
                 )
                 
-                # วาดกราฟแท่งแนวนอนเพื่อสร้างความเข้าใจเชิงภาพ (Visual Understanding)
-                st.markdown("**📊 กราฟเปรียบเทียบแรงผลัก ($F_x$) และ แรงเฉือนสะสม ($V_x$) ในแต่ละชั้น**")
-                
+                # พล็อตกราฟเปรียบเทียบแรง Fx
                 import plotly.graph_objects as go
                 fig_bar = go.Figure()
-                
-                # แท่งแรงผลักประจำชั้น Fx
                 fig_bar.add_trace(go.Bar(
-                    y=floor_names, x=Fx,
-                    name='แรงผลักประจำชั้น (Fx) - ผลักที่จุด CG ชั้น',
+                    y=floor_names, x=Fx, name='แรงผลักประจำชั้น (Fx) [ตัน]',
                     orientation='h', marker=dict(color='#3b82f6')
                 ))
-                
-                # แท่งแรงเฉือนสะสม Vx
-                fig_bar.add_trace(go.Bar(
-                    y=floor_names, x=Vx,
-                    name='แรงเฉือนสะสมในชั้น (Vx) - สะสมลงสู่ฐาน',
-                    orientation='h', marker=dict(color='#10b981'),
-                    opacity=0.6
-                ))
-                
                 fig_bar.update_layout(
-                    barmode='group',
-                    template='plotly_white',
-                    xaxis_title="แรงกระทำ (หน่วย: ตัน)",
-                    yaxis=dict(autorange="reverse"), # บังคับให้ชั้นดาดฟ้าอยู่บนสุด
-                    margin=dict(l=20, r=20, t=20, b=20),
-                    legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+                    template='plotly_white', xaxis_title="แรงผลัก (ตัน)",
+                    yaxis=dict(autorange="reverse"), margin=dict(l=20, r=20, t=20, b=20)
                 )
                 st.plotly_chart(fig_bar, use_container_width=True)
                 
         except Exception as e:
-            st.error(f"⚠️ เกิดข้อผิดพลาดในการคำนวณ: โปรดตรวจสอบว่าข้อมูลในตารางกรอกครบถ้วนและเป็นตัวเลข")
+            st.error(f"⚠️ เกิดข้อผิดพลาดทางเทคนิค: {str(e)}")
