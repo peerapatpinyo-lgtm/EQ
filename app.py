@@ -188,28 +188,30 @@ with tab1:
     st.subheader("3. ความเร่งสเปกตรัมตอบสนองสำหรับการออกแบบ")
     st.markdown("มาตรฐานกำหนดให้ปรับแก้ค่าความเร่งด้วยสภาพชั้นดิน ($S_{MS}, S_{M1}$) และปรับลดเป็นระดับออกแบบ ($S_{DS}, S_{D1}$) ดังนี้:")
     
-    # ใช้ Columns แบ่งซ้ายขวาเพื่อประหยัดพื้นที่และดูเป็นระเบียบ
     col_eq1, col_eq2 = st.columns(2)
     
-    # คำนวณค่า SMS, SM1 ไว้ล่วงหน้าสำหรับการแสดงผล
     SMS = Fa * Ss
     SM1 = Fv * S1
     
     with col_eq1:
         st.success("**ความเร่งปรับแก้ตามสภาพชั้นดินสูงสุด**")
         st.latex(r"S_{MS} = F_a \times S_s")
-        st.latex(rf"S_{MS} = {Fa:.3f} \times {Ss:.3f} = {SMS:.3f} \text{{ g}}")
+        # แก้ไขบรรทัดนี้: เพิ่มวงเล็บปีกกาเป็น {{MS}}
+        st.latex(rf"S_{{MS}} = {Fa:.3f} \times {Ss:.3f} = {SMS:.3f} \text{{ g}}")
         
         st.latex(r"S_{M1} = F_v \times S_1")
-        st.latex(rf"S_{M1} = {Fv:.3f} \times {S1:.3f} = {SM1:.3f} \text{{ g}}")
+        # แก้ไขบรรทัดนี้: เพิ่มวงเล็บปีกกาเป็น {{M1}}
+        st.latex(rf"S_{{M1}} = {Fv:.3f} \times {S1:.3f} = {SM1:.3f} \text{{ g}}")
         
     with col_eq2:
         st.error("**ความเร่งสเปกตรัมสำหรับการออกแบบ**")
         st.latex(r"S_{DS} = \frac{2}{3} S_{MS}")
-        st.latex(rf"S_{DS} = \frac{{2}}{{3}} \times {SMS:.3f} = {SDS:.3f} \text{{ g}}")
+        # แก้ไขบรรทัดนี้: เพิ่มวงเล็บปีกกาเป็น {{DS}}
+        st.latex(rf"S_{{DS}} = \frac{{2}}{{3}} \times {SMS:.3f} = {SDS:.3f} \text{{ g}}")
         
         st.latex(r"S_{D1} = \frac{2}{3} S_{M1}")
-        st.latex(rf"S_{D1} = \frac{{2}}{{3}} \times {SM1:.3f} = {SD1:.3f} \text{{ g}}")
+        # แก้ไขบรรทัดนี้: เพิ่มวงเล็บปีกกาเป็น {{D1}}
+        st.latex(rf"S_{{D1}} = \frac{{2}}{{3}} \times {SM1:.3f} = {SD1:.3f} \text{{ g}}")
 
     st.markdown("---")
     
