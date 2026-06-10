@@ -58,12 +58,15 @@ if site_class == 'F':
     st.stop()
 
 if input_method == "ดึงจากฐานข้อมูล":
-    if selected_province == "กรุงเทพมหานคร":
-        st.warning("⚠️ สำหรับพื้นที่ดินเหนียวอ่อนกรุงเทพฯ ต้องใช้ Response Spectrum เฉพาะตาม มยผ. 1302 โปรดอ้างอิงกราฟจากมาตรฐานโดยตรง")
-        st.stop()
     location_row = df_location[
         (df_location['Province'] == selected_province) & (df_location['District'] == selected_district)
     ].iloc[0]
+    
+    # ตรวจสอบคำว่า "ดินเหนียวอ่อน" ในชื่ออำเภอแทนการล็อกชื่อจังหวัดเดียว
+    if "ดินเหนียวอ่อน" in str(location_row['District']):
+        st.warning(f"⚠️ พื้นที่ {selected_province} ({location_row['District']}) เป็นพื้นที่แอ่งดินเหนียวอ่อนหนาพิเศษพิจารณาตาม มยผ. 1302 โครงสร้างต้องใช้ Response Spectrum เฉพาะของพื้นที่แอ่งนั้น ๆ โปรดอ้างอิงและคำนวณกราฟจากมาตรฐานโดยตรง")
+        st.stop()
+        
     Ss = float(location_row['Ss'])
     S1 = float(location_row['S1'])
 else:
