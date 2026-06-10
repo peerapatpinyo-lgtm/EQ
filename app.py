@@ -60,16 +60,14 @@ def calculate_approx_period(sys_type: str, hn: float) -> float:
     return Ct * (hn ** x)
 
 def evaluate_sdc_detailed(SDS: float, SD1: float, Ie: float) -> tuple:
-    """ฟังก์ชันประเมินประเภทการออกแบบ (SDC) พร้อมคืนค่ารายละเอียดการคิดแต่ละเงื่อนไข"""
+    """ฟังก์ชันประเมินประเภทการออกแบบ (SDC) พร้อมคืนค่ารายละเอียด"""
     is_essential = (Ie >= 1.5)
     
-    # เงื่อนไขจาก SDS
     if SDS < 0.167: sdc_sds = 'ก'
     elif SDS < 0.33: sdc_sds = 'ค' if is_essential else 'ข'
     elif SDS < 0.50: sdc_sds = 'ง' if is_essential else 'ค'
     else: sdc_sds = 'ง'
         
-    # เงื่อนไขจาก SD1
     if SD1 < 0.067: sdc_sd1 = 'ก'
     elif SD1 < 0.133: sdc_sd1 = 'ค' if is_essential else 'ข'
     elif SD1 < 0.20: sdc_sd1 = 'ง' if is_essential else 'ค'
@@ -116,7 +114,7 @@ with st.sidebar:
     building_weight = st.number_input("น้ำหนักรวม W (ตัน)", min_value=1.0, value=500.0, step=100.0)
 
 # ==========================================
-# 5. ประมวลผลและตรวจสอบเงื่อนไข
+# 5. ประมวลผลและตรวจสอบเงื่อนไขตั้งต้น
 # ==========================================
 if site_class == 'F':
     st.error("🛑 ชั้นดิน F ต้องเจาะสำรวจประเมินเฉพาะพื้นที่ (Site-Specific) เท่านั้น ไม่สามารถใช้ค่าคำนวณมาตรฐานได้")
@@ -141,54 +139,30 @@ T0 = 0.2 * (SD1 / SDS) if SDS > 0 else 0
 TS = SD1 / SDS if SDS > 0 else 0
 Ta = calculate_approx_period(sys_type, building_height)
 
-# --- 🚀 ประเมินประเภทการออกแบบแผ่นดินไหว (SDC) พร้อมแสดงที่มา ---
 sdc, sdc_sds, sdc_sd1 = evaluate_sdc_detailed(SDS, SD1, importance_factor)
 
-st.header("🛡️ ผลการประเมินประเภทการออกแบบ (Seismic Design Category)")
-
-# กล่องขยายแสดงวิธีการประเมิน (ที่มาของการจัดประเภท)
-with st.expander("🔍 ดูวิธีพิจารณาประเภทการออกแบบของอาคารนี้ (คลิกเพื่อขยาย)", expanded=True):
-    st.markdown(f"**ปัจจัยสำคัญ:** ตัวคูณความสำคัญของอาคาร ($I_e$) = **{importance_factor}** *(หมายเหตุ: หาก $I_e \ge 1.5$ มาตรฐานจะยกระดับความเสี่ยงขึ้นหนึ่งระดับเพื่อให้ปลอดภัยยิ่งขึ้น)*")
-    
-    col_sdc1, col_sdc2 = st.columns(2)
-    with col_sdc1:
-        st.markdown(f"**1. พิจารณาจากความเร่งคาบสั้น ($S_{{DS}}$)**")
-        st.markdown(f"- ค่าที่คำนวณได้: $S_{{DS}} =$ **{SDS:.3f} g**")
-        st.markdown(f"👉 ตกเกณฑ์การประเมิน: **ประเภท {sdc_sds}**")
-        
-    with col_sdc2:
-        st.markdown(f"**2. พิจารณาจากความเร่งคาบยาว ($S_{{D1}}$)**")
-        st.markdown(f"- ค่าที่คำนวณได้: $S_{{D1}} =$ **{SD1:.3f} g**")
-        st.markdown(f"👉 ตกเกณฑ์การประเมิน: **ประเภท {sdc_sd1}**")
-        
-    st.info(f"💡 **สรุปผล:** นำผลจากทั้งสองเงื่อนไขมาเปรียบเทียบกัน และเลือกประเภทที่ **เข้มงวดที่สุด** $\\rightarrow$ ดังนั้นอาคารนี้จึงจัดอยู่ใน **ประเภท {sdc}**")
-
-# สรุปผลลัพธ์ว่าต้องทำอย่างไรต่อ
-if sdc == 'ก':
-    st.success(f"✅ **อาคารนี้จัดอยู่ในประเภทการออกแบบ: '{sdc}' (SDC A) - ความเสี่ยงต่ำมาก**")
-    st.markdown("💡 **ข้อกำหนด มยผ.:** อาคารประเภท 'ก' ไม่ต้องวิเคราะห์แรงแผ่นดินไหวแบบเต็มรูปแบบ ให้คิดแรงกระทำด้านข้างอย่างน้อย **1% ของน้ำหนักอาคาร ($0.01W$)** ก็เพียงพอ")
-    v_min_sdc_a = 0.01 * building_weight
-    st.metric("แรงเฉือนที่ฐานขั้นต่ำ (1% W)", f"{v_min_sdc_a:,.2f} ตัน")
-    st.stop()
-else:
-    st.warning(f"⚠️ **อาคารนี้จัดอยู่ในประเภทการออกแบบ: '{sdc}'**")
-    st.markdown(f"**ต้องวิเคราะห์แรงแผ่นดินไหวเต็มรูปแบบ** เนื่องจากค่า $S_{{DS}}$ และ $S_{{D1}}$ เกินเกณฑ์ยกเว้น โปรดดูผลการคำนวณด้านล่าง")
-
-st.markdown("---")
-
-# ==========================================
-# 6. การแสดงผล (กรณี SDC เป็น ข, ค, ง)
-# ==========================================
-Cs_calculated = SDS / (r_factor / importance_factor)
-Cs_max = SD1 / (Ta * (r_factor / importance_factor)) if Ta > 0 else Cs_calculated
+Cs_calculated = SDS / (r_factor / importance_factor) if r_factor > 0 else 0
+Cs_max = SD1 / (Ta * (r_factor / importance_factor)) if (Ta > 0 and r_factor > 0) else Cs_calculated
 Cs_min = 0.01
 if S1 >= 0.6: Cs_min = max(Cs_min, (0.5 * S1) / (r_factor / importance_factor))
 
 Cs_design = min(max(Cs_calculated, Cs_min), Cs_max)
 Base_Shear = Cs_design * building_weight
 
-tab1, tab2, tab3 = st.tabs(["📋 รายการคำนวณพารามิเตอร์", "📈 กราฟสเปกตรัม", "🏢 แรงเฉือนที่ฐาน"])
+# ==========================================
+# 6. การแสดงผล (แบบแบ่ง Tabs เต็มรูปแบบ)
+# ==========================================
+st.markdown("---")
 
+# แบ่งเป็น 4 Tabs อย่างเป็นระเบียบ
+tab1, tab2, tab3, tab4 = st.tabs([
+    "📋 รายการคำนวณพารามิเตอร์", 
+    "🛡️ ประเภทการออกแบบ (SDC)", 
+    "📈 กราฟสเปกตรัม", 
+    "🏢 แรงเฉือนที่ฐาน"
+])
+
+# ----------------- TAB 1 -----------------
 with tab1:
     st.header("📋 รายการคำนวณพารามิเตอร์ (Step-by-Step)")
     st.markdown("แสดงลำดับการคำนวณพารามิเตอร์การตอบสนองเชิงสเปกตรัมตามมาตรฐาน **มยผ. 1301/1302**")
@@ -214,7 +188,6 @@ with tab1:
     st.divider()
     
     st.subheader("3. ความเร่งสเปกตรัมตอบสนองสำหรับการออกแบบ")
-    st.markdown("คำนวณปรับแก้พารามิเตอร์เพื่อใช้ในการสร้างกราฟและหาแรงเฉือนที่ฐานอาคาร")
     
     col_eq1, col_eq2 = st.columns(2)
     SMS = Fa * Ss
@@ -237,11 +210,8 @@ with tab1:
     
     with col_t1:
         st.success("🏗️ **คาบเวลาโครงสร้างโดยประมาณ ($T_a$)**")
-        st.markdown(f"ระบบโครงสร้าง: **{sys_type}**")
-        
-        params = {"โครงต้านทานแรงดัดเหล็กกล้า": (0.0724, 0.8), "โครงต้านทานแรงดัดคอนกรีตเสริมเหล็ก": (0.0466, 0.9), "โครงสร้างอื่นๆ": (0.0488, 0.75)}
-        Ct, x = params.get(sys_type, (0.0488, 0.75))
-        
+        params_dict = {"โครงต้านทานแรงดัดเหล็กกล้า": (0.0724, 0.8), "โครงต้านทานแรงดัดคอนกรีตเสริมเหล็ก": (0.0466, 0.9), "โครงสร้างอื่นๆ": (0.0488, 0.75)}
+        Ct, x = params_dict.get(sys_type, (0.0488, 0.75))
         st.latex(r"T_a = C_t h_n^x" + rf" = {Ct} \times {building_height}^{{{x}}} = {Ta:.3f} \text{{ s}}")
         
     with col_t2:
@@ -253,7 +223,36 @@ with tab1:
             st.latex(r"T_S = 0.000 \text{ s}")
             st.latex(r"T_0 = 0.000 \text{ s}")
 
+# ----------------- TAB 2 -----------------
 with tab2:
+    st.header("🛡️ ผลการประเมินประเภทการออกแบบ (Seismic Design Category)")
+    
+    if sdc == 'ก':
+        st.success(f"✅ **อาคารนี้จัดอยู่ในประเภทการออกแบบ: '{sdc}' (SDC A) - ความเสี่ยงต่ำมาก**")
+    else:
+        st.warning(f"⚠️ **อาคารนี้จัดอยู่ในประเภทการออกแบบ: '{sdc}'**")
+        st.markdown("**ต้องวิเคราะห์แรงแผ่นดินไหวเต็มรูปแบบ** โปรดดูรายการคำนวณใน Tab ถัดไป")
+        
+    with st.expander("🔍 ดูวิธีพิจารณาประเภทการออกแบบของอาคารนี้ (คลิกเพื่อขยาย)", expanded=True):
+        st.markdown(f"**ปัจจัยสำคัญ:** ตัวคูณความสำคัญของอาคาร ($I_e$) = **{importance_factor}** *(หาก $I_e \ge 1.5$ มาตรฐานจะยกระดับความเสี่ยงขึ้นหนึ่งระดับ)*")
+        
+        col_sdc1, col_sdc2 = st.columns(2)
+        with col_sdc1:
+            st.markdown(f"**1. พิจารณาจากความเร่งคาบสั้น ($S_{{DS}}$)**")
+            st.markdown(f"- $S_{{DS}} =$ **{SDS:.3f} g** $\\rightarrow$ ตกเกณฑ์: **ประเภท {sdc_sds}**")
+            
+        with col_sdc2:
+            st.markdown(f"**2. พิจารณาจากความเร่งคาบยาว ($S_{{D1}}$)**")
+            st.markdown(f"- $S_{{D1}} =$ **{SD1:.3f} g** $\\rightarrow$ ตกเกณฑ์: **ประเภท {sdc_sd1}**")
+            
+        st.info(f"💡 **สรุปผล:** เปรียบเทียบผลและเลือกประเภทที่ **เข้มงวดที่สุด** $\\rightarrow$ อาคารนี้จัดอยู่ใน **ประเภท {sdc}**")
+
+# ----------------- TAB 3 -----------------
+with tab3:
+    st.header("📈 กราฟความเร่งตอบสนองเชิงสเปกตรัม")
+    if sdc == 'ก':
+        st.info("💡 อาคารประเภท 'ก' ไม่จำเป็นต้องใช้วิธีกราฟสเปกตรัมตอบสนองในการคำนวณแรงเฉือน (แต่แสดงกราฟไว้เพื่อเป็นข้อมูลอ้างอิง)")
+        
     T_values = np.linspace(0.0, max(4.0, Ta * 1.5), 300)
     Sa_values = np.piecewise(
         T_values,
@@ -263,10 +262,25 @@ with tab2:
     chart_data = pd.DataFrame({'คาบเวลา T (sec)': T_values, 'Sa (g)': Sa_values})
     st.line_chart(chart_data.set_index('คาบเวลา T (sec)'), use_container_width=True)
 
-with tab3:
-    st.latex(r"C_s = \frac{S_{DS}}{R / I_e}")
-    st.latex(r"V = C_s W")
-    st.markdown(f"- **Cs (จากการคำนวณ):** {Cs_calculated:.4f}")
-    st.markdown(f"- **Cs (สูงสุด/ต่ำสุด):** {Cs_max:.4f} / {Cs_min:.4f}")
-    st.success(f"**สัมประสิทธิ์การออกแบบ (Cs): {Cs_design:.4f}**")
-    st.error(f"**แรงเฉือนที่ฐานอาคาร (V) = {Base_Shear:,.2f} ตัน**")
+# ----------------- TAB 4 -----------------
+with tab4:
+    st.header("🏢 แรงเฉือนที่ฐานอาคาร (Base Shear)")
+    
+    if sdc == 'ก':
+        st.success("✅ สำหรับอาคารประเภทการออกแบบ 'ก' มาตรฐานอนุญาตให้ออกแบบแรงเฉือนที่ฐานอย่างน้อย **1% ของน้ำหนักอาคาร ($0.01W$)** โดยไม่ต้องคำนวณสัมประสิทธิ์ Cs แบบเต็มรูปแบบ")
+        v_min_sdc_a = 0.01 * building_weight
+        st.latex(r"V = 0.01 W" + rf" = 0.01 \times {building_weight:,.2f} = {v_min_sdc_a:,.2f} \text{{ ตัน}}")
+        st.metric("แรงเฉือนที่ฐานขั้นต่ำสำหรับการออกแบบ", f"{v_min_sdc_a:,.2f} ตัน")
+    else:
+        st.markdown("การคำนวณแรงเฉือนที่ฐานด้วยวิธีแรงสถิตเทียบเท่า (Equivalent Static Force Procedure)")
+        st.latex(r"C_s = \frac{S_{DS}}{R / I_e}")
+        st.latex(r"V = C_s W")
+        
+        col_cs1, col_cs2 = st.columns(2)
+        with col_cs1:
+            st.markdown(f"- **Cs (จากการคำนวณหลัก):** {Cs_calculated:.4f}")
+            st.markdown(f"- **Cs (เพดานสูงสุด Max):** {Cs_max:.4f}")
+            st.markdown(f"- **Cs (ขั้นต่ำสุด Min):** {Cs_min:.4f}")
+        with col_cs2:
+            st.success(f"**สัมประสิทธิ์การออกแบบที่ใช้ (Cs): {Cs_design:.4f}**")
+            st.error(f"**แรงเฉือนที่ฐานอาคาร (V) = {Base_Shear:,.2f} ตัน**")
