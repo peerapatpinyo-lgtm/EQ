@@ -163,11 +163,74 @@ Base_Shear = Cs_design * building_weight
 tab1, tab2, tab3 = st.tabs(["📊 พารามิเตอร์", "📈 กราฟสเปกตรัม", "🏢 แรงเฉือนที่ฐาน"])
 
 with tab1:
-    col1, col2, col3, col4 = st.columns(4)
-    col1.metric("Ss (g)", f"{Ss:.3f}")
-    col2.metric("S1 (g)", f"{S1:.3f}")
-    col3.metric("SDS (g)", f"{SDS:.3f}")
-    col4.metric("SD1 (g)", f"{SD1:.3f}")
+    st.header("📋 สรุปพารามิเตอร์และรายการคำนวณ")
+    
+    # --- ส่วนที่ 1 ---
+    st.subheader("1. ข้อมูลความเร่งตอบสนองเชิงสเปกตรัม (จากแผนที่แผ่นดินไหว)")
+    st.markdown("ดึงข้อมูลจากตารางมาตรฐาน มยผ. ตามสถานที่ก่อสร้างที่เลือก:")
+    col1, col2 = st.columns(2)
+    col1.metric("Ss (คาบสั้น 0.2 วินาที)", f"{Ss:.3f} g")
+    col2.metric("S1 (คาบ 1.0 วินาที)", f"{S1:.3f} g")
+    
+    st.markdown("---")
+    
+    # --- ส่วนที่ 2 ---
+    st.subheader("2. ตัวคูณขยายอิทธิพลของชั้นดิน (Site Coefficients)")
+    st.markdown(f"**ประเภทชั้นดินที่ออกแบบ:** ชั้นดิน {site_class}")
+    st.markdown("หาค่า $F_a$ และ $F_v$ โดยการเทียบสมมติฐานเชิงเส้น (Linear Interpolation) จากตารางมาตรฐาน มยผ.")
+    col3, col4 = st.columns(2)
+    col3.metric("Fa", f"{Fa:.3f}")
+    col4.metric("Fv", f"{Fv:.3f}")
+    
+    st.markdown("---")
+    
+    # --- ส่วนที่ 3 ---
+    st.subheader("3. ความเร่งสเปกตรัมตอบสนองสำหรับการออกแบบ")
+    st.markdown("มาตรฐานกำหนดให้ปรับแก้ค่าความเร่งด้วยสภาพชั้นดิน ($S_{MS}, S_{M1}$) และปรับลดเป็นระดับออกแบบ ($S_{DS}, S_{D1}$) ดังนี้:")
+    
+    # ใช้ Columns แบ่งซ้ายขวาเพื่อประหยัดพื้นที่และดูเป็นระเบียบ
+    col_eq1, col_eq2 = st.columns(2)
+    
+    # คำนวณค่า SMS, SM1 ไว้ล่วงหน้าสำหรับการแสดงผล
+    SMS = Fa * Ss
+    SM1 = Fv * S1
+    
+    with col_eq1:
+        st.success("**ความเร่งปรับแก้ตามสภาพชั้นดินสูงสุด**")
+        st.latex(r"S_{MS} = F_a \times S_s")
+        st.latex(rf"S_{MS} = {Fa:.3f} \times {Ss:.3f} = {SMS:.3f} \text{{ g}}")
+        
+        st.latex(r"S_{M1} = F_v \times S_1")
+        st.latex(rf"S_{M1} = {Fv:.3f} \times {S1:.3f} = {SM1:.3f} \text{{ g}}")
+        
+    with col_eq2:
+        st.error("**ความเร่งสเปกตรัมสำหรับการออกแบบ**")
+        st.latex(r"S_{DS} = \frac{2}{3} S_{MS}")
+        st.latex(rf"S_{DS} = \frac{{2}}{{3}} \times {SMS:.3f} = {SDS:.3f} \text{{ g}}")
+        
+        st.latex(r"S_{D1} = \frac{2}{3} S_{M1}")
+        st.latex(rf"S_{D1} = \frac{{2}}{{3}} \times {SM1:.3f} = {SD1:.3f} \text{{ g}}")
+
+    st.markdown("---")
+    
+    # --- ส่วนที่ 4 ---
+    st.subheader("4. การคำนวณคาบเวลาโครงสร้าง (Periods)")
+    col_t1, col_t2 = st.columns(2)
+    
+    with col_t1:
+        st.markdown("**คาบเวลาโครงสร้างโดยประมาณ ($T_a$)**")
+        st.markdown("พิจารณาจากระบบต้านทานแรงด้านข้างและความสูงอาคาร:")
+        st.latex(r"T_a = C_t h_n^x")
+        st.latex(rf"T_a = {Ta:.3f} \text{{ วินาที}}")
+        
+    with col_t2:
+        st.markdown("**คาบเวลาเปลี่ยนผ่านของกราฟสเปกตรัม ($T_0, T_S$)**")
+        if SDS > 0:
+            st.latex(r"T_S = \frac{S_{D1}}{S_{DS}}" + rf" = \frac{{{SD1:.3f}}}{{{SDS:.3f}}} = {TS:.3f} \text{{ วินาที}}")
+            st.latex(r"T_0 = 0.2 T_S" + rf" = 0.2 \times {TS:.3f} = {T0:.3f} \text{{ วินาที}}")
+        else:
+            st.latex(r"T_S = 0.000 \text{ วินาที}")
+            st.latex(r"T_0 = 0.000 \text{ วินาที}")
 
 with tab2:
     T_values = np.linspace(0.0, max(4.0, Ta * 1.5), 300)
