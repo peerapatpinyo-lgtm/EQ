@@ -434,11 +434,16 @@ with tab3:
     # แสดงกราฟใน Streamlit
     st.plotly_chart(fig, use_container_width=True)
 
-
-# ----------------- TAB 4 (Ultimate Professional Edition) -----------------
+# ----------------- TAB 4 (Ultimate Professional Edition - Fixed) -----------------
 with tab4:
     st.header("🏢 วิธีแรงสถิตเทียบเท่า (Equivalent Static Procedure)")
     st.markdown("ระบบคำนวณกระจายแรงแผ่นดินไหว และตรวจสอบเสถียรภาพอาคารตามมาตรฐาน **มยผ. 1301/1302**")
+
+    # 🛡️ SAFETY GUARD: ป้องกัน NameError จากการรันข้ามแท็บ หรือยังไม่ได้กดคำนวณในแท็บหลัก
+    # หากไม่พบตัวแปรในระบบ จะกำหนดค่าเริ่มต้นความปลอดภัยให้ทันที แอปจะไม่พัง
+    if 'SDS' not in locals() and 'SDS' not in globals():
+        st.warning("⚠️ **ไม่พบพารามิเตอร์แผ่นดินไหวจากแท็บหลัก:** ระบบได้เปิดใช้งานโหมดจำลองค่าเริ่มต้น (Simulation Mode) ให้ชั่วคราว กรุณากลับไปกรอกข้อมูลในแท็บแรกเพื่อใช้ค่าจริง")
+        SDS, SD1, Ta, importance_factor = 0.5, 0.2, 0.3, 1.0  # ค่าสมมติเพื่อให้ระบบทำงานได้ไม่ Crash
 
     # --- สเต็ป 1: พารามิเตอร์ระบบโครงสร้าง ---
     st.subheader("⚡ สเต็ปที่ 1: กำหนดสัมประสิทธิ์โครงสร้าง")
@@ -455,7 +460,7 @@ with tab4:
     R = structural_systems[selected_system]["R"]
     Omega0 = structural_systems[selected_system]["Omega"]
     Cd = structural_systems[selected_system]["Cd"]
-    Ie = importance_factor # ตัวแปรดึงจากฟังก์ชันหลักส่วนต้นของคุณ
+    Ie = importance_factor 
 
     # คำนวณสัมประสิทธิ์แรงเฉือนที่ฐาน (Cs) ตามสมการมาตรฐาน
     Cs_compute = SDS / (R / Ie)
@@ -471,7 +476,7 @@ with tab4:
 
     st.divider()
 
-    # --- แบ่งหน้าต่างการทำงานหลักออกเป็น 2 ส่วนย่อย ---
+    # --- แบ่งหน้าต่างการทำงานหลัก ---
     sub_tab1, sub_tab2 = st.tabs(["🏗️ 1. รายงานการคำนวณแรงประจำชั้น", "📏 2. รายงานการตรวจสอบการโยกตัว"])
 
     # ================= SUB TAB 1 =================
@@ -493,7 +498,7 @@ with tab4:
             }, key="force_editor"
         )
 
-        if not edited_df.empty:
+        if edited_df is not None and not edited_df.empty:
             cleaned_df = edited_df.dropna(subset=[edited_df.columns[1], edited_df.columns[2]])
             if not cleaned_df.empty:
                 hx = cleaned_df.iloc[:, 1].astype(float).values
@@ -532,7 +537,7 @@ with tab4:
                     "แรงเฉือนสะสม Vx (ตัน)": "{:,.2f}", "โมเมนต์พลิกคว่ำ Mx (ตัน-ม.)": "{:,.2f}"
                 }), use_container_width=True)
 
-                # 📑 เพิ่มส่วนตรวจสอบสัญญวิทยาและสูตร (Calculation Note)
+                # 📑 รายการคำนวณโปร่งใส (Calculation Note) ที่จะไม่เกิด NameError แล้ว
                 with st.expander("📄 เปิดดูบันทึกข้อความสรุปสูตรคำนวณ (Calculation Note Summary)", expanded=False):
                     st.markdown("### 🖋️ รายการสรุปสูตรคำนวณเชิงวิศวกรรม")
                     st.latex(r"V_{\text{base}} = C_s \times W = " + f"{Cs_governing:.4f} \times {total_W:,.2f} = {total_V:,.2f} \\text{ ตัน}")
@@ -543,7 +548,7 @@ with tab4:
                         st.latex(f"C_{{vx}} = \\frac{{{wx[idx]:,.1f} \\times {hx[idx]:.2f}^{{{k_exp:.2f}}}}}{{{sum_w_hx_k:,.1f}}} = {cvx[idx]:.4f}")
                         st.latex(f"F_x = {cvx[idx]:.4f} \\times {total_V:,.2f} = {Fx[idx]:,.2f} \\text{ ตัน}")
 
-                # พล็อตกราฟ Subplots
+                # พล็อตกราฟ
                 from plotly.subplots import make_subplots
                 import plotly.graph_objects as go
                 fig_force = make_subplots(rows=1, cols=3, shared_yaxes=True, horizontal_spacing=0.06, subplot_titles=("แรงผลักแผ่นดินไหว (Fx)", "แรงเฉือนสะสม (Vx)", "โมเมนต์พลิกคว่ำ (Mx)"))
@@ -558,7 +563,6 @@ with tab4:
     with sub_tab2:
         st.markdown("##### 📏 ตรวจสอบระยะเคลื่อนตัวขยับพังทลาย (Story Drift Safety Check)")
         
-        # จัดการข้อมูล Drift Limit
         if Ie >= 1.5:
             drift_limit_factor = 0.010; cat_text = "อาคารความสำคัญสูงมาก (Limit = 1.0%)"
         elif Ie >= 1.25:
@@ -566,7 +570,6 @@ with tab4:
         else:
             drift_limit_factor = 0.020; cat_text = "อาคารทั่วไป (Limit = 2.0%)"
 
-        # แสดงกล่องอธิบายโครงสร้างพร้อมโมเดลวาดกราฟิกให้วิศวกรเห็นพฤติกรรมโครงสร้าง
         with st.container(border=True):
             st.markdown(f"🎯 **เกณฑ์ที่ใช้ประเมินระบบในโครงการนี้:** {cat_text} ของความสูงชั้นสุทธิ")
             col_pic1, col_pic2 = st.columns([1, 1.2])
@@ -574,7 +577,6 @@ with tab4:
                 st.markdown("⚙️ **สมการและสัญลักษณ์ที่ควบคุมเสถียรภาพ:**")
                 st.latex(r"\delta_x = \frac{C_d \times \delta_e}{I_e}")
                 st.latex(r"\text{Drift Ratio} = \frac{\delta_{top} - \delta_{bot}}{h_{net}} \le \text{Limit}")
-                st.markdown("<small>**หมายเหตุ:** $\delta_e$ คือระยะเคลื่อนตัวยืดหยุ่นที่ต้องเปิดตาราง Joint Displacement จากโปรแกรมวิเคราะห์โครงสร้าง (เช่น ETABS) มาป้อนลงในช่องสีฟ้าด้านขวา</small>", unsafe_allowed_html=True)
             with col_pic2:
                 import plotly.graph_objects as go
                 fig_model = go.Figure()
@@ -595,7 +597,6 @@ with tab4:
                 fig_model.update_layout(xaxis=dict(visible=False, range=[-2, 6]), yaxis=dict(visible=False, range=[-1, 10]), plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', margin=dict(l=0, r=0, t=0, b=0), height=200, showlegend=False)
                 st.plotly_chart(fig_model, use_container_width=True, config={'displayModeBar': False})
 
-        # เช็กความพร้อมข้อมูลจาก Sub-tab 1
         if 'floor_names' in locals() and len(floor_names) > 0:
             drift_df = pd.DataFrame({
                 "ชื่อชั้น": floor_names,
@@ -613,7 +614,7 @@ with tab4:
             )
             
             delta_e = edited_drift["ระยะโยกพืดหยุ่นจากโปรแกรม δe (ซม.)"].values
-            delta_x = (Cd * delta_e) / Ie # การโยกตัวพลาสติกจริงในสนาม
+            delta_x = (Cd * delta_e) / Ie 
             
             story_h = np.zeros_like(hx)
             drift_ratio = np.zeros_like(hx)
@@ -642,6 +643,3 @@ with tab4:
                 "ความสูงชั้นสุทธิ (ม.)": "{:.2f}", "ระยะโยกจริงในสนาม δx (ซม.)": "{:.2f}", 
                 "Drift Ratio (Δ/h)": "{:.4f}", "Limit (Max)": "{:.4f}"
             }), use_container_width=True)
-            
-        else:
-            st.warning("⚠️ กรุณากรอกข้อมูลในหน้าย่อยที่ 1 'กระจายแรงแผ่นดินไหว' เพื่อตั้งต้นข้อมูลชั้นอาคารก่อนครับ")
